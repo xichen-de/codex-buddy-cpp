@@ -1,6 +1,7 @@
 #include "codex_ui.hpp"
 
 #include <cassert>
+#include <cstdlib>
 #include <cstdio>
 #include <cstring>
 #include <vector>
@@ -82,7 +83,7 @@ int main(void)
     assert(applyEvent(model, open_menu));
     buddy::codex::ui::render(model, nullptr, 0, storage);
     assert(checksum(pixels) != disconnected);
-    write_snapshot(getenv("UI_SNAPSHOT_DIR"), "codex-menu", pixels);
+    write_snapshot(std::getenv("UI_SNAPSHOT_DIR"), "codex-menu", pixels);
     const Event close_menu = MenuClosed{};
     assert(applyEvent(model, close_menu));
 
@@ -98,7 +99,7 @@ int main(void)
     assert(pixel_at(pixels, 55, 38) == rgb565(45, 190, 225));
     assert(pixel_at(pixels, 160, 38) == rgb565(35, 190, 100));
     assert(pixel_at(pixels, 265, 38) == rgb565(230, 65, 75));
-    write_snapshot(getenv("UI_SNAPSHOT_DIR"), "control", pixels);
+    write_snapshot(std::getenv("UI_SNAPSHOT_DIR"), "control", pixels);
 
     event = PageSelected{Page::Navigate};
     assert(applyEvent(model, event));
@@ -132,13 +133,13 @@ int main(void)
     const uint64_t agents_dim = checksum(pixels);
     buddy::codex::ui::render(model, nullptr, 800, storage);
     assert(checksum(pixels) != agents_dim);
-    write_snapshot(getenv("UI_SNAPSHOT_DIR"), "agents", pixels);
+    write_snapshot(std::getenv("UI_SNAPSHOT_DIR"), "agents", pixels);
 
     set_slot(model, 2, SlotStatus::Idle, false);
     set_slot(model, 2, SlotStatus::Complete, false);
     buddy::codex::ui::render(model, nullptr, 800, storage);
     assert(pixel_at(pixels, 160, 144) == rgb565(35, 190, 100));
-    write_snapshot(getenv("UI_SNAPSHOT_DIR"), "complete", pixels);
+    write_snapshot(std::getenv("UI_SNAPSHOT_DIR"), "complete", pixels);
     puts("codex_ui host tests passed");
     return 0;
 }
