@@ -50,8 +50,9 @@ static esp_hid_device_config_t s_hid_config = {
 
 static esp_ble_adv_params_t s_advertising_params = [] {
     esp_ble_adv_params_t params{};
-    params.adv_int_min = 0x20;
-    params.adv_int_max = 0x30;
+    /* BLE advertising intervals use 0.625 ms units: 250-500 ms here. */
+    params.adv_int_min = 0x190;
+    params.adv_int_max = 0x320;
     params.adv_type = ADV_TYPE_IND;
     params.own_addr_type = BLE_ADDR_TYPE_PUBLIC;
     params.channel_map = ADV_CHNL_ALL;

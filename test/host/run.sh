@@ -10,6 +10,11 @@ cxxflags="-std=c++20 -Wall -Wextra -Werror -pedantic"
 mkdir -p "$output_dir"
 
 $cxx $cxxflags \
+  -I"$project_dir/main" \
+  "$test_dir/test_display_power_policy.cpp" \
+  -o "$output_dir/test_display_power_policy"
+
+$cxx $cxxflags \
   -I"$project_dir/components/codex_protocol/include" \
   "$project_dir/components/codex_protocol/codex_protocol.cpp" \
   "$test_dir/test_codex_protocol.cpp" \
@@ -89,6 +94,7 @@ $cxx $cxxflags \
   "$test_dir/test_codex_ui.cpp" \
   -o "$output_dir/test_codex_ui"
 
+"$output_dir/test_display_power_policy"
 "$output_dir/test_codex_protocol"
 "$output_dir/test_codex_model"
 "$output_dir/test_claude_model"

@@ -16,11 +16,21 @@ namespace {
 
 constexpr char Tag[] = "claude_runtime";
 
+platform::DisplayPower platformPower(DisplayPowerLevel level) noexcept
+{
+    switch (level) {
+        case DisplayPowerLevel::Normal: return platform::DisplayPower::Normal;
+        case DisplayPowerLevel::Dimmed: return platform::DisplayPower::Dimmed;
+        case DisplayPowerLevel::Off: return platform::DisplayPower::Off;
+    }
+    return platform::DisplayPower::Normal;
+}
+
 }  // namespace
 
 void ClaudeRuntime::render() noexcept
 {
-    if (!displayAwake_) return;
+    if (displayPower_ == platform::DisplayPower::Off) return;
     const auto battery = platform::battery();
     display::renderClaude(model_, uptimeMs(), passkeyVisible_, passkey_,
                           battery.has_value(), battery ? battery->percent : 0,
@@ -42,14 +52,16 @@ void ClaudeRuntime::playSound(platform::Sound sound) noexcept
 
 void ClaudeRuntime::wakeDisplay(std::uint32_t nowMs) noexcept
 {
-    lastInteractionMs_ = nowMs;
-    if (model_.faceDown || displayAwake_) return;
-    const esp_err_t error = platform::setDisplayAwake(true);
+    displayPowerPolicy_.recordInteraction(nowMs);
+    if (model_.faceDown ||
+        displayPower_ == platform::DisplayPower::Normal) return;
+    const esp_err_t error =
+        platform::setDisplayPower(platform::DisplayPower::Normal);
     if (error != ESP_OK)
         ESP_LOGW(Tag, "Claude display could not wake: %s",
                  esp_err_to_name(error));
     else
-        displayAwake_ = true;
+        displayPower_ = platform::DisplayPower::Normal;
 }
 
 bool ClaudeRuntime::processMotion(std::uint32_t nowMs) noexcept
@@ -66,9 +78,11 @@ bool ClaudeRuntime::processMotion(std::uint32_t nowMs) noexcept
         motion_, sample.x_g, sample.y_g, sample.z_g, nowMs);
     if (events.faceDown) {
         claude::setFaceDown(model_, true);
-        if (displayAwake_) {
-            const esp_err_t displayError = platform::setDisplayAwake(false);
-            if (displayError == ESP_OK) displayAwake_ = false;
+        if (displayPower_ != platform::DisplayPower::Off) {
+            const esp_err_t displayError =
+                platform::setDisplayPower(platform::DisplayPower::Off);
+            if (displayError == ESP_OK)
+                displayPower_ = platform::DisplayPower::Off;
             else
                 ESP_LOGW(Tag, "Face-down display sleep failed: %s",
                          esp_err_to_name(displayError));
@@ -87,7 +101,7 @@ bool ClaudeRuntime::processMotion(std::uint32_t nowMs) noexcept
         wakeDisplay(nowMs);
         return true;
     }
-    if (events.moved && !displayAwake_) {
+    if (events.moved && displayPower_ == platform::DisplayPower::Off) {
         wakeDisplay(nowMs);
         return true;
     }
@@ -222,11 +236,11 @@ bool ClaudeRuntime::processTouch() noexcept
     if (touch.type != platform::TouchType::Pressed || passkeyVisible_)
         return false;
     const std::uint32_t now = uptimeMs();
-    if (!displayAwake_) {
+    if (displayPower_ == platform::DisplayPower::Off) {
         wakeDisplay(now);
         return true;
     }
-    lastInteractionMs_ = now;
+    displayPowerPolicy_.recordInteraction(now);
     const display::ClaudeAction action =
         display::claudeHit(model_, touch.x, touch.y);
     switch (action) {
@@ -288,8 +302,8 @@ void ClaudeRuntime::run() noexcept
     ESP_ERROR_CHECK(claude::storage::load(model_));
     claude::setConnection(model_, claude::Connection::Connecting);
     decoder_.reset();
-    displayAwake_ = true;
-    lastInteractionMs_ = uptimeMs();
+    displayPower_ = platform::DisplayPower::Normal;
+    displayPowerPolicy_.recordInteraction(uptimeMs());
 
     const esp_err_t speakerError = platform::initializeSpeaker();
     speakerReady_ = speakerError == ESP_OK;
@@ -357,17 +371,24 @@ void ClaudeRuntime::run() noexcept
         const claude::Connection before = model_.connection;
         claude::expireConnection(model_, now, SnapshotTimeoutMs);
         redraw |= before != model_.connection;
-        if (displayAwake_ && !model_.promptActive && !passkeyVisible_ &&
-            now - lastInteractionMs_ >= ScreenTimeoutMs) {
-            const esp_err_t error = platform::setDisplayAwake(false);
+        const platform::DisplayPower desired = model_.faceDown
+            ? platform::DisplayPower::Off
+            : platformPower(displayPowerPolicy_.desired(
+                  now, model_.promptActive || passkeyVisible_ ||
+                           model_.waitingSessions > 0));
+        if (desired != displayPower_) {
+            const bool wasOff = displayPower_ == platform::DisplayPower::Off;
+            const esp_err_t error = platform::setDisplayPower(desired);
             if (error != ESP_OK)
-                ESP_LOGW(Tag, "Claude display could not sleep: %s",
+                ESP_LOGW(Tag, "Claude display power change failed: %s",
                          esp_err_to_name(error));
-            else
-                displayAwake_ = false;
-            redraw = false;
+            else {
+                displayPower_ = desired;
+                redraw |= wasOff && desired != platform::DisplayPower::Off;
+            }
         }
-        if (displayAwake_ && now - lastAnimationMs_ >= AnimationPeriodMs) {
+        if (displayPower_ != platform::DisplayPower::Off &&
+            now - lastAnimationMs_ >= AnimationPeriodMs) {
             lastAnimationMs_ = now;
             redraw |= model_.page == claude::Page::Pet ||
                       model_.page == claude::Page::Clock;

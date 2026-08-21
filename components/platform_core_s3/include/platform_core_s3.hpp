@@ -26,6 +26,8 @@ struct TouchEvent {
 
 enum class Sound : std::uint8_t { Connect, Attention, Approve, Deny, Complete };
 
+enum class DisplayPower : std::uint8_t { Normal, Dimmed, Off };
+
 struct MotionSample {
     float x_g{};
     float y_g{};
@@ -46,8 +48,8 @@ struct BatteryStatus {
 /* Transfers the entire RGB565 framebuffer and waits until DMA is finished. */
 [[nodiscard]] esp_err_t present() noexcept;
 
-/* Controls both the LCD panel and CoreS3 backlight. */
-[[nodiscard]] esp_err_t setDisplayAwake(bool awake) noexcept;
+/* Coordinates the LCD panel with normal, dimmed, and off backlight levels. */
+[[nodiscard]] esp_err_t setDisplayPower(DisplayPower power) noexcept;
 
 /* Polls the capacitive touchscreen and emits edge/move events. */
 [[nodiscard]] esp_err_t pollTouch(TouchEvent &event) noexcept;

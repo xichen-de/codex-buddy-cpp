@@ -124,6 +124,13 @@ Claude mode uses an experimental developer API; see
 
 Normal operation uses Bluetooth and does not require a USB cable.
 
+After inactivity, both modes dim the backlight after 15 seconds and turn the
+LCD panel off after one minute while keeping Bluetooth connected. Touch wakes
+the display; the first touch from off is consumed to avoid activating a hidden
+control. Permission prompts, pairing passkeys, waiting Claude sessions, and
+Codex Agents requiring input immediately restore and hold normal brightness
+until the action is resolved.
+
 ## Development
 
 The firmware uses C++20, ESP-IDF, and PlatformIO. Project code is organized as

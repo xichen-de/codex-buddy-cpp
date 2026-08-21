@@ -94,8 +94,9 @@ static const std::array<esp_gatts_attr_db_t, AttributeCount> s_gatt_db{{
 
 static esp_ble_adv_params_t s_advertising_params = [] {
     esp_ble_adv_params_t params{};
-    params.adv_int_min = 0x30;
-    params.adv_int_max = 0x60;
+    /* BLE advertising intervals use 0.625 ms units: 250-500 ms here. */
+    params.adv_int_min = 0x190;
+    params.adv_int_max = 0x320;
     params.adv_type = ADV_TYPE_IND;
     params.own_addr_type = BLE_ADDR_TYPE_RANDOM;
     params.channel_map = ADV_CHNL_ALL;
