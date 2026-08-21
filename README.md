@@ -1,5 +1,7 @@
 # Codex Buddy
 
+[![CI](https://github.com/xichen-de/codex-buddy-cpp/actions/workflows/ci.yml/badge.svg)](https://github.com/xichen-de/codex-buddy-cpp/actions/workflows/ci.yml)
+
 Codex Buddy turns an [M5Stack CoreS3](https://docs.m5stack.com/en/core/CoreS3)
 into a touchscreen desktop companion. Choose a mode at startup:
 
