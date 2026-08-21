@@ -26,6 +26,7 @@ enum class ClaudeAction : std::uint8_t {
     ActivityDown,
     Approve,
     Deny,
+    ToggleMute,
     SwitchMode,
 };
 
@@ -39,7 +40,8 @@ void renderSelector(std::span<std::uint16_t> pixels) noexcept;
 void renderClaude(const claude::Model &model, std::uint32_t nowMs,
                   bool passkeyVisible, std::uint32_t passkey,
                   bool batteryKnown, std::uint8_t batteryPercent,
-                  bool charging, std::span<std::uint16_t> pixels) noexcept;
+                  bool charging, std::span<std::uint16_t> pixels,
+                  bool muted = false) noexcept;
 
 /* Maps a Claude-screen press to a page, scroll, decision, or mode action. */
 [[nodiscard]] ClaudeAction claudeHit(const claude::Model &model,

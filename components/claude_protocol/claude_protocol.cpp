@@ -2,157 +2,26 @@
 
 #include <algorithm>
 #include <array>
-#include <cctype>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+
+#include "fixed_json.hpp"
 
 namespace buddy::claude {
 namespace {
 
 constexpr std::size_t TokenCount = 256;
-
-enum class TokenType : std::uint8_t {
-    Undefined,
-    Object,
-    Array,
-    String,
-    Primitive,
-};
-
-struct Token {
-    TokenType type{TokenType::Undefined};
-    int start{-1};
-    int end{-1};
-    int parent{-1};
-};
-
-struct Parser {
-    std::array<Token, TokenCount> tokens{};
-    std::size_t count{};
-    int parent{-1};
-};
+using Parser = fixed_json::Parser<TokenCount>;
+using fixed_json::Token;
+using fixed_json::TokenType;
+using fixed_json::objectValue;
+using fixed_json::tokenEquals;
+using fixed_json::tokenize;
 
 /* Claude messages are processed on the single application task. Keeping the
    fixed token table here avoids consuming half of that task's stack. */
 Parser parserStorage;
-
-/* Allocates and initializes one token in the fixed parser token array. */
-int newToken(Parser &parser, TokenType type, int start) noexcept
-{
-    if (parser.count >= TokenCount) return -1;
-    const int index = static_cast<int>(parser.count++);
-    parser.tokens[static_cast<std::size_t>(index)] =
-        Token{.type = type, .start = start, .end = -1, .parent = parser.parent};
-    return index;
-}
-
-/* Scans a quoted JSON string and validates escape boundaries. */
-bool parseString(std::string_view json, std::size_t &position, Parser &parser) noexcept
-{
-    const int index = newToken(parser, TokenType::String, static_cast<int>(position) + 1);
-    if (index < 0) return false;
-    for (++position; position < json.size(); ++position) {
-        const auto byte = static_cast<unsigned char>(json[position]);
-        if (byte == '"') {
-            parser.tokens[static_cast<std::size_t>(index)].end = static_cast<int>(position);
-            return true;
-        }
-        if (byte < 0x20U) return false;
-        if (byte == '\\') {
-            if (++position >= json.size() ||
-                std::string_view{"\"\\/bfnrtu"}.find(json[position]) == std::string_view::npos)
-                return false;
-            if (json[position] == 'u') {
-                for (unsigned digit = 0; digit < 4; ++digit) {
-                    if (++position >= json.size() ||
-                        !std::isxdigit(static_cast<unsigned char>(json[position])))
-                        return false;
-                }
-            }
-        }
-    }
-    return false;
-}
-
-/* Scans a JSON primitive until whitespace or a structural delimiter. */
-bool parsePrimitive(std::string_view json, std::size_t &position, Parser &parser) noexcept
-{
-    const int index = newToken(parser, TokenType::Primitive, static_cast<int>(position));
-    if (index < 0) return false;
-    while (position < json.size() &&
-           std::string_view{" \t\r\n,]}"}.find(json[position]) == std::string_view::npos) {
-        const auto byte = static_cast<unsigned char>(json[position]);
-        if (byte < 0x20U || byte >= 0x7fU ||
-            std::string_view{":{[\""}.find(static_cast<char>(byte)) != std::string_view::npos)
-            return false;
-        ++position;
-    }
-    if (parser.tokens[static_cast<std::size_t>(index)].start == static_cast<int>(position))
-        return false;
-    parser.tokens[static_cast<std::size_t>(index)].end = static_cast<int>(position);
-    --position;
-    return true;
-}
-
-/* Tokenizes one complete line using fixed storage and parent relationships. */
-bool tokenize(std::string_view json, Parser &parser) noexcept
-{
-    parser = Parser{};
-    parser.parent = -1;
-    for (std::size_t position = 0; position < json.size(); ++position) {
-        const char byte = json[position];
-        if (byte == '{' || byte == '[') {
-            const int index = newToken(
-                parser, byte == '{' ? TokenType::Object : TokenType::Array,
-                static_cast<int>(position));
-            if (index < 0) return false;
-            parser.parent = index;
-        } else if (byte == '}' || byte == ']') {
-            const TokenType expected = byte == '}' ? TokenType::Object : TokenType::Array;
-            const int open = parser.parent;
-            if (open < 0 || parser.tokens[static_cast<std::size_t>(open)].type != expected)
-                return false;
-            parser.tokens[static_cast<std::size_t>(open)].end = static_cast<int>(position) + 1;
-            parser.parent = parser.tokens[static_cast<std::size_t>(open)].parent;
-        } else if (byte == '"') {
-            if (!parseString(json, position, parser)) return false;
-        } else if (byte == ' ' || byte == '\t' || byte == '\r' || byte == '\n' ||
-                   byte == ':' || byte == ',') {
-            continue;
-        } else if (!parsePrimitive(json, position, parser)) {
-            return false;
-        }
-    }
-    if (parser.parent != -1 || parser.count == 0 ||
-        parser.tokens[0].type != TokenType::Object) return false;
-    for (std::size_t index = 0; index < parser.count; ++index)
-        if (parser.tokens[index].end < 0) return false;
-    return true;
-}
-
-/* Compares a string token directly against a field or command name. */
-bool tokenEquals(std::string_view json, const Token &token, std::string_view text) noexcept
-{
-    const auto length = static_cast<std::size_t>(token.end - token.start);
-    return token.type == TokenType::String && text.size() == length &&
-           json.substr(static_cast<std::size_t>(token.start), length) == text;
-}
-
-/* Finds the value token belonging to a direct child key of an object. */
-int objectValue(std::string_view json, const Parser &parser, int object,
-                std::string_view key) noexcept
-{
-    if (object < 0 || parser.tokens[static_cast<std::size_t>(object)].type != TokenType::Object)
-        return -1;
-    for (std::size_t index = static_cast<std::size_t>(object) + 1; index + 1 < parser.count;
-         ++index) {
-        if (parser.tokens[index].parent == object &&
-            tokenEquals(json, parser.tokens[index], key) &&
-            parser.tokens[index + 1].parent == object) return static_cast<int>(index) + 1;
-    }
-    return -1;
-}
 
 /* Parses an unsigned integer token with full-token and overflow validation. */
 bool tokenU64(std::string_view json, const Token &token, std::uint64_t &value) noexcept
@@ -185,6 +54,23 @@ bool tokenI64(std::string_view json, const Token &token, std::int64_t &value) no
     if (end != buffer.data() + length) return false;
     value = static_cast<std::int64_t>(parsed);
     return true;
+}
+
+/* Finds an error flag at any depth in a turn event's raw SDK content. */
+bool hasErrorFlag(std::string_view json, const Parser &parser) noexcept
+{
+    for (std::size_t index = 0; index + 1 < parser.count; ++index) {
+        const Token &key = parser.tokens[index];
+        const Token &value = parser.tokens[index + 1];
+        if (key.parent >= 0 && value.parent == key.parent &&
+            parser.tokens[static_cast<std::size_t>(key.parent)].type ==
+                TokenType::Object &&
+            tokenEquals(json, key, "is_error") && value.type == TokenType::Primitive &&
+            json.substr(static_cast<std::size_t>(value.start),
+                        static_cast<std::size_t>(value.end - value.start)) == "true")
+            return true;
+    }
+    return false;
 }
 
 /* Appends U+FFFD's placeholder when an escaped Unicode sequence cannot be represented. */
@@ -505,7 +391,12 @@ Result handleLine(std::string_view json, Model &model, const Context &context,
         action.clockChanged = true;
         return Result::Complete;
     }
-    if (objectValue(json, parser, 0, "evt") >= 0) return Result::Complete;
+    const int event = objectValue(json, parser, 0, "evt");
+    if (event >= 0) {
+        if (tokenEquals(json, parser.tokens[static_cast<std::size_t>(event)], "turn"))
+            action.errorOccurred = hasErrorFlag(json, parser);
+        return Result::Complete;
+    }
     return Result::Invalid;
 }
 

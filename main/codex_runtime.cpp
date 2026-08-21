@@ -41,10 +41,18 @@ void CodexRuntime::render() noexcept
 {
     if (displayPower_ == platform::DisplayPower::Off) return;
     const codex::Action *active = input_.active ? &input_.action : nullptr;
-    codex::ui::render(model_, active, uptimeMs(), platform::framebuffer());
+    codex::ui::render(model_, active, uptimeMs(), platform::framebuffer(),
+                      audio_.muted());
     const esp_err_t error = platform::present();
     if (error != ESP_OK)
         ESP_LOGE(Tag, "Display update failed: %s", esp_err_to_name(error));
+}
+
+void CodexRuntime::playSound(platform::Sound sound) noexcept
+{
+    const esp_err_t error = audio_.play(sound);
+    if (error != ESP_OK)
+        ESP_LOGW(Tag, "Codex sound failed: %s", esp_err_to_name(error));
 }
 
 void CodexRuntime::wakeDisplay(std::uint32_t nowMs) noexcept
@@ -138,8 +146,43 @@ bool CodexRuntime::processCompleteRequest() noexcept
     }
 
     bool changed = false;
-    for (std::size_t index = 0; index < result.eventCount; ++index)
-        changed |= codex::applyEvent(model_, result.events[index]);
+    platform::Sound cue = platform::Sound::Complete;
+    unsigned cuePriority = 0;
+    for (std::size_t index = 0; index < result.eventCount; ++index) {
+        const codex::Event &event = result.events[index];
+        const auto *status = std::get_if<codex::SlotStatusChanged>(&event);
+        const codex::SlotStatus previous = status != nullptr &&
+                status->index < codex::SlotCount
+            ? model_.slots[status->index].status
+            : codex::SlotStatus::Unknown;
+        const bool eventChanged = codex::applyEvent(model_, event);
+        changed |= eventChanged;
+        if (!eventChanged || status == nullptr || status->value.status == previous)
+            continue;
+        unsigned priority = 0;
+        platform::Sound candidate = platform::Sound::Complete;
+        switch (status->value.status) {
+            case codex::SlotStatus::RequiresInput:
+                priority = 3;
+                candidate = platform::Sound::Attention;
+                break;
+            case codex::SlotStatus::Error:
+                priority = 2;
+                candidate = platform::Sound::Error;
+                break;
+            case codex::SlotStatus::Complete:
+                priority = 1;
+                candidate = platform::Sound::Complete;
+                break;
+            default:
+                break;
+        }
+        if (priority > cuePriority) {
+            cuePriority = priority;
+            cue = candidate;
+        }
+    }
+    if (cuePriority > 0) playSound(cue);
     const esp_err_t error = codex::transport::sendJson(result.responseView());
     if (error != ESP_OK)
         ESP_LOGW(Tag, "RPC response could not be sent: %s",
@@ -201,6 +244,15 @@ bool CodexRuntime::processTouch() noexcept
         esp_restart();
         return false;
     }
+    if (action.type == codex::ActionType::ToggleMute) {
+        const bool muted = !audio_.muted();
+        const esp_err_t saveError = audio_.setMuted(muted);
+        if (saveError != ESP_OK)
+            ESP_LOGW(Tag, "Mute setting could not be saved: %s",
+                     esp_err_to_name(saveError));
+        if (!muted) playSound(platform::Sound::Attention);
+        return true;
+    }
     (void)codex::handleAction(model_, action, phase, this);
     return true;
 }
@@ -228,10 +280,17 @@ void CodexRuntime::run() noexcept
              static_cast<unsigned>(codex::ReportBodySize));
 
     codex::init(model_);
+    const audio::Initialization audioInitialization = audio_.initialize();
+    if (audioInitialization.settingsError != ESP_OK)
+        ESP_LOGW(Tag, "Mute setting could not be loaded: %s",
+                 esp_err_to_name(audioInitialization.settingsError));
     decoder_.reset();
     codex::init(input_);
     displayPower_ = platform::DisplayPower::Normal;
     displayPowerPolicy_.recordInteraction(uptimeMs());
+    if (!audio_.ready())
+        ESP_LOGW(Tag, "Codex will run without sounds: %s",
+                 esp_err_to_name(audioInitialization.speakerError));
     if (!queue_.initialize()) {
         ESP_LOGE(Tag, "Could not allocate Codex runtime queue");
         return;

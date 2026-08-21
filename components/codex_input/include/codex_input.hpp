@@ -21,6 +21,7 @@ enum class ActionType : std::uint8_t {
     DismissOverlay,
     OpenMenu,
     CloseMenu,
+    ToggleMute,
     SwitchMode,
 };
 

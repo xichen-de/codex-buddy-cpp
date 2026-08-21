@@ -5,6 +5,8 @@
 #include <cstdio>
 #include <cstring>
 
+#include "buddy_layout.hpp"
+
 #ifdef BUDDY_USE_LVGL_FONT
 #include "ui_font.hpp"
 #endif
@@ -496,9 +498,12 @@ static void draw_clock_page(Canvas *canvas, const buddy::claude::Model *model,
     centered(canvas, date, 160, 132, 2, OwlLight);
 }
 
-/* Draws device identity, decision statistics, and the mode-switch control. */
-static void draw_info_page(Canvas *canvas, const buddy::claude::Model *model)
+/* Draws device identity and shared sound/mode settings. */
+static void draw_info_page(Canvas *canvas, const buddy::claude::Model *model,
+                           bool muted)
 {
+    const layout::Rect mute = layout::claude_info::Mute;
+    const layout::Rect switchMode = layout::claude_info::SwitchMode;
     text(canvas, "DEVICE", 14, 44, 1, Muted);
     clipped_text(canvas, model->deviceName.data(), 95, 44, 32, Text);
     text(canvas, "OWNER", 14, 68, 1, Muted);
@@ -508,9 +513,14 @@ static void draw_info_page(Canvas *canvas, const buddy::claude::Model *model)
     text(canvas, model->connection == buddy::claude::Connection::Connected
         ? "CONNECTED" : "WAITING", 95, 92, 1,
         model->connection == buddy::claude::Connection::Connected ? Green : Amber);
-    box(canvas, 40, 137, 240, 50, ClaudeColor, Panel);
-    centered(canvas, "SWITCH BUDDY", 160, 151, 2, Text);
-    centered(canvas, "RESTART TO MODE SELECTOR", 160, 174, 1, Muted);
+    box(canvas, mute.x, mute.y, mute.width, mute.height,
+        muted ? Dim : Green, Panel);
+    centered(canvas, muted ? "SOUND: MUTED" : "SOUND: ON",
+             160, 123, 2, Text);
+    box(canvas, switchMode.x, switchMode.y, switchMode.width,
+        switchMode.height, ClaudeColor, Panel);
+    centered(canvas, "SWITCH BUDDY", 160, 162, 2, Text);
+    centered(canvas, "RESTART TO MODE SELECTOR", 160, 183, 1, Muted);
 }
 
 /* Draws the modal permission prompt with approve and deny buttons. */
@@ -544,7 +554,8 @@ static void draw_passkey(Canvas *canvas, uint32_t passkey)
 void renderClaude(const claude::Model &model, std::uint32_t nowMs,
                   bool passkeyVisible, std::uint32_t passkey,
                   bool batteryKnown, std::uint8_t batteryPercent,
-                  bool charging, std::span<std::uint16_t> pixels) noexcept
+                  bool charging, std::span<std::uint16_t> pixels,
+                  bool muted) noexcept
 {
     if (pixels.size() < PixelCount) return;
     Canvas canvas = {.pixels = pixels.data()};
@@ -553,7 +564,7 @@ void renderClaude(const claude::Model &model, std::uint32_t nowMs,
     if (model.page == claude::Page::Pet) draw_pet_page(&canvas, &model, nowMs);
     else if (model.page == claude::Page::Activity) draw_activity_page(&canvas, &model);
     else if (model.page == claude::Page::Clock) draw_clock_page(&canvas, &model, nowMs);
-    else draw_info_page(&canvas, &model);
+    else draw_info_page(&canvas, &model, muted);
     draw_tabs(&canvas, model.page);
     if (model.promptActive) draw_approval(&canvas, &model);
     if (passkeyVisible) draw_passkey(&canvas, passkey);
@@ -580,8 +591,12 @@ ClaudeAction claudeHit(const claude::Model &model, std::uint16_t x,
         if (in_rect(x, y, 280, 157, 30, 40))
             return ClaudeAction::ActivityDown;
     }
-    if (model.page == claude::Page::Info && in_rect(x, y, 40, 137, 240, 50))
-        return ClaudeAction::SwitchMode;
+    if (model.page == claude::Page::Info) {
+        if (layout::contains(layout::claude_info::Mute, x, y))
+            return ClaudeAction::ToggleMute;
+        if (layout::contains(layout::claude_info::SwitchMode, x, y))
+            return ClaudeAction::SwitchMode;
+    }
     return ClaudeAction::None;
 }
 

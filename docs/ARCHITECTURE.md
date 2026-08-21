@@ -157,13 +157,17 @@ sound, and persistence. Motion samples take a separate path through
 | `codex_controller` | Codex action policy and message intent | BLE implementation |
 | `codex_protocol` | HID descriptor, framing, JSON reassembly | RPC meaning, UI state |
 | `codex_rpc` | Supported desktop methods and model events | BLE and drawing |
+| `fixed_json` | Bounded JSON tokenization and object lookup | Protocol meaning, allocation |
+| `buddy_layout` | Shared control rectangles and point containment | Rendering style, actions |
 | `ui` | Codex pixel rendering | Hardware transfer and touch |
 | `codex_ble_transport` | Codex BLE HID lifecycle and reports | Application state |
 | `claude_model` | Claude UI/session/permission state | Parsing, I/O, drawing |
 | `claude_protocol` | Claude JSON framing and commands | BLE, NVS, RTC, sound |
 | `buddy_ui` | Selector/Claude rendering and hit testing | Hardware transfer |
 | `claude_ble_transport` | Claude BLE service, security, bonding | Protocol meaning |
-| `claude_storage` | Persisted Claude counters/settings | Runtime policy |
+| `claude_storage` | Persisted Claude identity and decision counters | Runtime policy |
+| `buddy_settings` | Shared persisted preferences | Sound policy and UI state |
+| `buddy_audio` | Mute state, persistence coordination, and guarded playback | Cue selection |
 | `motion_detector` | Motion filtering and gesture events | IMU hardware access |
 | `platform_core_s3` | LCD, touch, speaker, RTC, and IMU APIs | Mode-specific behavior |
 | `main` | Composition, owned runtime classes, queues, side effects | Reusable domain logic |

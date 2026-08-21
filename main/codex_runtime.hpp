@@ -6,6 +6,7 @@
 #include <string_view>
 
 #include "codex_ble_transport.hpp"
+#include "buddy_audio.hpp"
 #include "codex_controller.hpp"
 #include "codex_input.hpp"
 #include "codex_model.hpp"
@@ -36,6 +37,7 @@ private:
     [[nodiscard]] bool sendJson(std::string_view json) noexcept override;
 
     void render() noexcept;
+    void playSound(platform::Sound sound) noexcept;
     [[nodiscard]] bool applyConnection(bool connected) noexcept;
     [[nodiscard]] bool processCompleteRequest() noexcept;
     [[nodiscard]] bool processReport(
@@ -51,6 +53,7 @@ private:
     codex::Model model_{};
     codex::Decoder decoder_{};
     codex::Input input_{};
+    audio::Controller audio_{};
     Queue<Event, QueueCapacity> queue_{};
     DisplayPowerPolicy displayPowerPolicy_{};
     platform::DisplayPower displayPower_{platform::DisplayPower::Normal};

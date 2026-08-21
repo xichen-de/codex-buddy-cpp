@@ -42,6 +42,7 @@ struct Action {
     bool persistModel{};
     bool sendResponse{};
     bool forgetBondAfterResponse{};
+    bool errorOccurred{};
     std::array<char, ResponseSize> response{};
     std::size_t responseLength{};
 

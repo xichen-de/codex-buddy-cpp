@@ -31,7 +31,9 @@ int main(void)
            buddy::display::ClaudeAction::ActivityDown);
 
     model.page = buddy::claude::Page::Info;
-    assert(buddy::display::claudeHit(model, 100, 150) ==
+    assert(buddy::display::claudeHit(model, 100, 130) ==
+           buddy::display::ClaudeAction::ToggleMute);
+    assert(buddy::display::claudeHit(model, 100, 175) ==
            buddy::display::ClaudeAction::SwitchMode);
     model.promptActive = true;
     assert(buddy::display::claudeHit(model, 50, 160) ==

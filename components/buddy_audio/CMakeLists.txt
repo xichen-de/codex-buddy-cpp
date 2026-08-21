@@ -1,5 +1,5 @@
-idf_component_register(SRCS "claude_protocol.cpp"
+idf_component_register(SRCS "buddy_audio.cpp"
                        INCLUDE_DIRS "include"
-                       REQUIRES claude_model fixed_json)
+                       REQUIRES buddy_settings platform_core_s3)
 
 target_compile_options(${COMPONENT_LIB} PRIVATE -Wall -Wextra -Werror)

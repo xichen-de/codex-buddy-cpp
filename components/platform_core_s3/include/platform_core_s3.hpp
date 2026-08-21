@@ -24,7 +24,14 @@ struct TouchEvent {
     std::uint16_t y{};
 };
 
-enum class Sound : std::uint8_t { Connect, Attention, Approve, Deny, Complete };
+enum class Sound : std::uint8_t {
+    Connect,
+    Attention,
+    Approve,
+    Deny,
+    Complete,
+    Error,
+};
 
 enum class DisplayPower : std::uint8_t { Normal, Dimmed, Off };
 
@@ -57,7 +64,7 @@ struct BatteryStatus {
 /* The current official BSP does not expose trustworthy battery telemetry. */
 [[nodiscard]] std::optional<BatteryStatus> battery() noexcept;
 
-/* Initializes speaker hardware; failure is nonfatal to the Claude runtime. */
+/* Initializes speaker hardware; failure is nonfatal to either runtime. */
 [[nodiscard]] esp_err_t initializeSpeaker() noexcept;
 
 /* Plays the fixed tone sequence associated with a semantic UI sound. */

@@ -35,7 +35,7 @@ void ClaudeRuntime::render() noexcept
     display::renderClaude(model_, uptimeMs(), passkeyVisible_, passkey_,
                           battery.has_value(), battery ? battery->percent : 0,
                           battery && battery->charging,
-                          platform::framebuffer());
+                          platform::framebuffer(), audio_.muted());
     const esp_err_t error = platform::present();
     if (error != ESP_OK)
         ESP_LOGE(Tag, "Claude display update failed: %s",
@@ -44,8 +44,7 @@ void ClaudeRuntime::render() noexcept
 
 void ClaudeRuntime::playSound(platform::Sound sound) noexcept
 {
-    if (!speakerReady_) return;
-    const esp_err_t error = platform::playSound(sound);
+    const esp_err_t error = audio_.play(sound);
     if (error != ESP_OK)
         ESP_LOGW(Tag, "Claude sound failed: %s", esp_err_to_name(error));
 }
@@ -147,6 +146,7 @@ bool ClaudeRuntime::processLine() noexcept
 {
     const bool promptWasActive = model_.promptActive;
     const std::uint32_t runningBefore = model_.runningSessions;
+    const std::uint32_t waitingBefore = model_.waitingSessions;
     const auto battery = platform::battery();
     const std::uint32_t now = uptimeMs();
     claude::Context context{
@@ -194,10 +194,15 @@ bool ClaudeRuntime::processLine() noexcept
                          esp_err_to_name(error));
         }
     }
-    if (!promptWasActive && model_.promptActive) {
+    if (action.errorOccurred) {
+        wakeDisplay(context.nowMs);
+        playSound(platform::Sound::Error);
+    } else if ((!promptWasActive && model_.promptActive) ||
+               (waitingBefore == 0 && model_.waitingSessions > 0)) {
         wakeDisplay(context.nowMs);
         playSound(platform::Sound::Attention);
-    } else if (runningBefore > 0 && model_.runningSessions == 0) {
+    } else if (runningBefore > 0 && model_.runningSessions == 0 &&
+               model_.waitingSessions == 0 && !model_.promptActive) {
         playSound(platform::Sound::Complete);
     }
     return action.modelChanged;
@@ -286,6 +291,15 @@ bool ClaudeRuntime::processTouch() noexcept
                          esp_err_to_name(storageError));
             return true;
         }
+        case display::ClaudeAction::ToggleMute: {
+            const bool muted = !audio_.muted();
+            const esp_err_t saveError = audio_.setMuted(muted);
+            if (saveError != ESP_OK)
+                ESP_LOGW(Tag, "Mute setting could not be saved: %s",
+                         esp_err_to_name(saveError));
+            if (!muted) playSound(platform::Sound::Attention);
+            return true;
+        }
         case display::ClaudeAction::SwitchMode:
             esp_restart();
             return false;
@@ -300,16 +314,18 @@ void ClaudeRuntime::run() noexcept
     ESP_LOGI(Tag, "Claude Owl Buddy starting on M5Stack CoreS3");
     claude::init(model_);
     ESP_ERROR_CHECK(claude::storage::load(model_));
+    const audio::Initialization audioInitialization = audio_.initialize();
+    if (audioInitialization.settingsError != ESP_OK)
+        ESP_LOGW(Tag, "Mute setting could not be loaded: %s",
+                 esp_err_to_name(audioInitialization.settingsError));
     claude::setConnection(model_, claude::Connection::Connecting);
     decoder_.reset();
     displayPower_ = platform::DisplayPower::Normal;
     displayPowerPolicy_.recordInteraction(uptimeMs());
 
-    const esp_err_t speakerError = platform::initializeSpeaker();
-    speakerReady_ = speakerError == ESP_OK;
-    if (!speakerReady_)
+    if (!audio_.ready())
         ESP_LOGW(Tag, "Claude will run without sounds: %s",
-                 esp_err_to_name(speakerError));
+                 esp_err_to_name(audioInitialization.speakerError));
 
     const esp_err_t rtcError = platform::initializeRtc();
     if (rtcError == ESP_OK) {

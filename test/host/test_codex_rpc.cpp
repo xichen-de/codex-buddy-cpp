@@ -16,6 +16,11 @@ static void test_standard_responses(void)
     assert(result.responseView().find("1.0.0-cores3") != std::string_view::npos);
     assert(result.responseView().find("\"id\":1") != std::string_view::npos);
 
+    assert(buddy::codex::handleRequest(
+               "{\"note\":\"method\",\"method\":\"sys.version\",\"id\":2}",
+               {}, result) == buddy::codex::Result::Ok);
+    assert(result.responseView().find("1.0.0-cores3") != std::string_view::npos);
+
     buddy::codex::RequestContext context{
         .batteryPercent = 42, .batteryKnown = true, .charging = true};
     assert(buddy::codex::handleRequest("{\"method\":\"device.status\",\"id\":\"a\"}",
