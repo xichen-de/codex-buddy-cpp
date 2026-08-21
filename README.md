@@ -8,8 +8,7 @@ into a touchscreen desktop companion. Choose a mode at startup:
 - **Claude:** an animated owl, activity and token summaries, a clock, and
   permission controls for Claude's Hardware Buddy interface.
 
-Codex mode is hardware-validated. Claude mode builds and passes host tests, but
-its physical pairing and interaction checklist is still pending.
+Both modes are hardware-validated on CoreS3.
 
 > [!IMPORTANT]
 > This is an unofficial experimental hobby project. It is not affiliated with
@@ -21,7 +20,7 @@ its physical pairing and interaction checklist is still pending.
 | Mode | Software status | Hardware status |
 | --- | --- | --- |
 | Codex | Implemented and covered by host tests | Validated on CoreS3 with macOS 26.5.2 and ChatGPT Desktop 26.730.61639 |
-| Claude | Implemented and covered by host tests | Physical pairing and interaction validation pending |
+| Claude | Implemented and covered by host tests | Validated on CoreS3 with macOS 26.5.2 and Claude 1.34493.1 |
 
 Compatibility is version-specific: Codex Micro is undocumented, and Claude's
 Hardware Buddy interface is experimental. See the
@@ -111,8 +110,8 @@ Switch Buddy** to return to the startup selector.
 
 Pairing is stored on the device and normally survives restarts. Pair again if
 you forget the device on the computer, erase NVS, or change its BLE identity.
-Claude mode uses an experimental developer API and still needs the physical
-checks in [HARDWARE_TEST.md](docs/HARDWARE_TEST.md).
+Claude mode uses an experimental developer API; see
+[HARDWARE_TEST.md](docs/HARDWARE_TEST.md) for the completed validation record.
 
 ## Power safety
 
@@ -158,8 +157,8 @@ Flashing changes the connected device. Do not edit generated files under
 
 - [Architecture](docs/ARCHITECTURE.md): components, ownership, and data flow
 - [Protocol notes](docs/PROTOCOL.md): Codex HID framing, RPCs, and compatibility
-- [Hardware validation](docs/HARDWARE_TEST.md): tested configurations, completed
-  checks, and the remaining Claude checklist
+- [Hardware validation](docs/HARDWARE_TEST.md): tested configurations and
+  completed checks for both modes
 - [Contributor guide](AGENTS.md): project conventions and verification rules
 
 ## Credits

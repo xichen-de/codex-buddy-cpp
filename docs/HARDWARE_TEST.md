@@ -98,77 +98,87 @@ completed on the physical CoreS3. The tested host versions are recorded here,
 and the protocol notes retain the compatibility caveat for future ChatGPT
 Desktop releases.
 
-## Claude Owl Buddy validation — pending
+## Claude Owl Buddy validation — passed
 
-The following checks apply to the dual-mode firmware and have not yet been run
+The v1 physical validation pass for Claude mode completed successfully on
+2026-08-21. The following checks apply to the dual-mode firmware and were run
 on physical hardware. They do not change the completed Codex v1 record above.
+
+- CoreS3 hardware: M5Stack CoreS3 (board revision/serial label not recorded)
+- macOS version: 26.5.2 (25F84)
+- Claude version: 1.34493.1 (255293), build date 2026-08-21T02:05:20.000Z
+- PlatformIO version: Core 6.1.19
+- Firmware: Claude Owl Buddy validation build
+- Date and tester: 2026-08-21, Xi
 
 ### Startup and Codex regression
 
-- [ ] Cold boot shows Codex and Claude choices before either advertises.
-- [ ] Choosing Codex opens the existing six-Agent UI and advertises only
+- [x] Cold boot shows Codex and Claude choices before either advertises.
+- [x] Choosing Codex opens the existing six-Agent UI and advertises only
   `Codex Micro`.
-- [ ] Previously paired Codex reconnects and all controls/status updates still
+- [x] Previously paired Codex reconnects and all controls/status updates still
   pass the functional checklist above.
-- [ ] Reboot returns to the selector without clearing the Codex bond.
+- [x] Reboot returns to the selector without clearing the Codex bond.
 
 ### Claude security and reconnection
 
-- [ ] Choosing Claude advertises `Claude CoreS3-XXXX` over Nordic UART and does
+- [x] Choosing Claude advertises `Claude CoreS3-XXXX` over Nordic UART and does
   not expose the Codex HID service.
-- [ ] Claude's Hardware Buddy picker discovers the device.
-- [ ] The CoreS3 displays a six-digit passkey and macOS accepts it.
-- [ ] The link reports secure after authentication; RX, TX, and CCCD access are
+- [x] Claude's Hardware Buddy picker discovers the device.
+- [x] The CoreS3 displays a six-digit passkey and macOS accepts it.
+- [x] The link reports secure after authentication; RX, TX, and CCCD access are
   unavailable before encryption.
-- [ ] Power-cycle into Claude mode and confirm automatic reconnect without a
+- [x] Power-cycle into Claude mode and confirm automatic reconnect without a
   new passkey.
-- [ ] Switch Claude → selector → Codex → selector → Claude and confirm both
+- [x] Switch Claude → selector → Codex → selector → Claude and confirm both
   saved pairings continue to reconnect without macOS service-cache confusion.
-- [ ] Use Claude's Forget action and confirm only the intended Claude pairing
+- [x] Use Claude's Forget action and confirm only the intended Claude pairing
   is removed; verify the Codex pairing still works.
 
 ### Claude protocol and UI
 
-- [ ] Idle, running, waiting, and disconnected heartbeats produce sleep, idle,
+- [x] Idle, running, waiting, and disconnected heartbeats produce sleep, idle,
   busy, and attention owl states.
-- [ ] Owl animations remain smooth for sleep, idle, busy, attention,
+- [x] Owl animations remain smooth for sleep, idle, busy, attention,
   celebration, heart, and dizzy states without display corruption.
-- [ ] Activity shows session counts, daily/total tokens, and up to eight recent
+- [x] Activity shows session counts, daily/total tokens, and up to eight recent
   entries; UP/DN scroll through all entries without overflowing the display.
-- [ ] Claude time sync populates the Clock page with the correct local date and
+- [x] Claude time sync populates the Clock page with the correct local date and
   time, then a power cycle shows time from the battery-backed BM8563 before
   Claude reconnects.
-- [ ] Connection, attention, approval, denial, and completion sounds are clear,
+- [x] Connection, attention, approval, denial, and completion sounds are clear,
   brief, and do not reset or stall BLE.
-- [ ] After 30 seconds without touch the screen turns off; one touch wakes it
+- [x] After 30 seconds without touch the screen turns off; one touch wakes it
   without activating the underlying control, and a permission/passkey wakes it
   automatically.
-- [ ] Place the CoreS3 screen-up and flat once to establish orientation, then
+- [x] Place the CoreS3 screen-up and flat once to establish orientation, then
   shake it firmly; the owl enters dizzy once without repeated false triggers.
-- [ ] Leave the CoreS3 face-down for more than one second; the owl/display
+- [x] Leave the CoreS3 face-down for more than one second; the owl/display
   sleeps. Pick it up and confirm motion wakes the display on the Owl page.
-- [ ] Normal tapping, speaker playback, and desk vibration do not falsely
+- [x] Normal tapping, speaker playback, and desk vibration do not falsely
   trigger dizzy or face-down sleep.
-- [ ] A disposable harmless permission request shows the correct tool and hint.
-- [ ] Approve Once permits exactly that request; Deny rejects exactly that
+- [x] A disposable harmless permission request shows the correct tool and hint.
+- [x] Approve Once permits exactly that request; Deny rejects exactly that
   request; neither action is duplicated by touch release.
-- [ ] Owner/name commands persist across a power cycle, as do approval and
+- [x] Owner/name commands persist across a power cycle, as do approval and
   denial counts.
-- [ ] Stopping heartbeats for more than 30 seconds produces the disconnected
+- [x] Stopping heartbeats for more than 30 seconds produces the disconnected
   state and a later heartbeat recovers the live state.
-- [ ] Info → Switch Buddy safely restarts to the startup selector.
+- [x] Info → Switch Buddy safely restarts to the startup selector.
 
 ### Switching buddies from Codex
 
-- [ ] Tap `MENU`, then `SWITCH BUDDY`; the device restarts at the Codex/Claude
+- [x] Tap `MENU`, then `SWITCH BUDDY`; the device restarts at the Codex/Claude
   startup selector.
-- [ ] Open the menu while the Mac is disconnected; switching still works.
-- [ ] Tap `CLOSE`; the previous Codex screen returns unchanged.
-- [ ] Switching Codex → Claude → Codex does not require re-pairing either
+- [x] Open the menu while the Mac is disconnected; switching still works.
+- [x] Tap `CLOSE`; the previous Codex screen returns unchanged.
+- [x] Switching Codex → Claude → Codex does not require re-pairing either
   Bluetooth identity.
 
 ### Claude validation decision
 
-**Decision: pending physical validation.** Automated host tests and release and
-debug builds are necessary evidence, but cannot verify macOS pairing, bond
-coexistence, GATT service caching, or touch/display behavior on the device.
+**Decision: Claude Owl Buddy v1 hardware validation passed.** Every Claude
+check above was completed on the physical CoreS3, alongside a Codex regression
+pass to confirm dual-mode switching does not disturb the existing Codex bond.
+The tested host versions are recorded here, and the protocol notes retain the
+compatibility caveat for future Claude releases.
