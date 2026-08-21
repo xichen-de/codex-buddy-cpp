@@ -12,3 +12,11 @@ CONFIG_SPIRAM_USE_MALLOC=y
 # The control-plane JSON parser uses a fixed token table while handling the
 # multi-report lighting configuration sent at connection time.
 CONFIG_ESP_MAIN_TASK_STACK_SIZE=8192
+
+# The framebuffer renderers use LVGL's anti-aliased Montserrat glyph data
+# without requiring the LVGL object/display lifecycle.
+CONFIG_LV_CONF_MINIMAL=y
+CONFIG_LV_FONT_MONTSERRAT_10=y
+CONFIG_LV_FONT_MONTSERRAT_14=y
+CONFIG_LV_FONT_MONTSERRAT_20=y
+CONFIG_LV_FONT_MONTSERRAT_28=y

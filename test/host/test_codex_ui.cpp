@@ -90,15 +90,15 @@ int main(void)
     Event event = ConnectionChanged{Connection::Connected};
     assert(applyEvent(model, event));
     buddy::codex::ui::render(model, nullptr, 0, storage);
-    assert(pixel_at(pixels, 160, 82) == rgb565(45, 145, 235));
+    assert(pixel_at(pixels, 160, 82) == rgb565(75, 135, 188));
 
     event = SlotSelected{1};
     assert(applyEvent(model, event));
     buddy::codex::ui::render(model, nullptr, 0, storage);
     assert(checksum(pixels) != disconnected);
-    assert(pixel_at(pixels, 55, 38) == rgb565(45, 190, 225));
-    assert(pixel_at(pixels, 160, 38) == rgb565(35, 190, 100));
-    assert(pixel_at(pixels, 265, 38) == rgb565(230, 65, 75));
+    assert(pixel_at(pixels, 55, 40) == rgb565(73, 153, 174));
+    assert(pixel_at(pixels, 160, 40) == rgb565(67, 146, 101));
+    assert(pixel_at(pixels, 265, 40) == rgb565(181, 83, 89));
     write_snapshot(std::getenv("UI_SNAPSHOT_DIR"), "control", pixels);
 
     event = PageSelected{Page::Navigate};
@@ -124,12 +124,12 @@ int main(void)
     dismiss_overlay(model);
 
     buddy::codex::ui::render(model, nullptr, 0, storage);
-    assert(pixel_at(pixels, 60, 45) == rgb565(15, 42, 65));
-    assert(pixel_at(pixels, 165, 45) == rgb565(13, 48, 62));
-    assert(pixel_at(pixels, 270, 45) == rgb565(12, 47, 31));
-    assert(pixel_at(pixels, 60, 129) == rgb565(55, 39, 17));
-    assert(pixel_at(pixels, 165, 129) == rgb565(54, 22, 29));
-    assert(pixel_at(pixels, 190, 38) == rgb565(242, 246, 252));
+    assert(pixel_at(pixels, 60, 45) == rgb565(23, 36, 48));
+    assert(pixel_at(pixels, 165, 45) == rgb565(22, 39, 46));
+    assert(pixel_at(pixels, 270, 45) == rgb565(22, 38, 30));
+    assert(pixel_at(pixels, 60, 129) == rgb565(43, 35, 23));
+    assert(pixel_at(pixels, 165, 129) == rgb565(43, 27, 31));
+    assert(pixel_at(pixels, 190, 38) == rgb565(199, 206, 214));
     const uint64_t agents_dim = checksum(pixels);
     buddy::codex::ui::render(model, nullptr, 800, storage);
     assert(checksum(pixels) != agents_dim);
@@ -138,7 +138,7 @@ int main(void)
     set_slot(model, 2, SlotStatus::Idle, false);
     set_slot(model, 2, SlotStatus::Complete, false);
     buddy::codex::ui::render(model, nullptr, 800, storage);
-    assert(pixel_at(pixels, 160, 144) == rgb565(35, 190, 100));
+    assert(pixel_at(pixels, 160, 144) == rgb565(67, 146, 101));
     write_snapshot(std::getenv("UI_SNAPSHOT_DIR"), "complete", pixels);
     puts("codex_ui host tests passed");
     return 0;
