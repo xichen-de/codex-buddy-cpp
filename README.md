@@ -73,6 +73,8 @@ The touchscreen pages provide:
 
 Mic records from the Mac only while the button is held. To change modes, open
 **Menu → Switch Buddy**; the device restarts without erasing pairing data.
+Codex plays distinct cues when an Agent needs input, completes, or errors. Use
+**Menu → Sound** to mute or unmute all notification sounds.
 
 ### Codex troubleshooting
 
@@ -104,11 +106,13 @@ Claude mode includes:
 - Eight recent activity entries, session counts, and token totals.
 - A timezone-aware clock synchronized by Claude.
 - One-time Approve and Deny controls for permission prompts.
-- Sound cues, shake reactions, and face-down screen sleep.
+- Attention, completion, and error sound cues, plus shake reactions and
+  face-down screen sleep. Claude error cues require an error-bearing turn event.
 
 Place the device screen-up and flat once after startup to calibrate its
 orientation. Touch or a permission request wakes the display. Use **Info →
-Switch Buddy** to return to the startup selector.
+Sound** to change the shared persisted mute setting, or **Info → Switch Buddy**
+to return to the startup selector.
 
 Pairing is stored on the device and normally survives restarts. Pair again if
 you forget the device on the computer, erase NVS, or change its BLE identity.

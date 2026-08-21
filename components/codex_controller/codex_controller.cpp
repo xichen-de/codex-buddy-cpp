@@ -56,6 +56,7 @@ bool handleAction(Model &model, const Action &action, ActionPhase phase,
                 : applyEvent(model, Event{MenuClosed{}});
         }
         case ActionType::SwitchMode:
+        case ActionType::ToggleMute:
             return false;
         case ActionType::Slot: {
             if (phase == ActionPhase::Press) {

@@ -3,6 +3,8 @@
 #include <cstdio>
 #include <cstring>
 
+#include "buddy_layout.hpp"
+
 #ifdef BUDDY_USE_LVGL_FONT
 #include "ui_font.hpp"
 #endif
@@ -425,21 +427,33 @@ static void draw_navigate(Canvas *canvas, const Model *model,
 }
 
 /* Draws the highest-priority modal overlay over the completed page. */
-static void draw_overlay(Canvas *canvas, const Model *model)
+static void draw_overlay(Canvas *canvas, const Model *model, bool muted)
 {
     const Overlay active_overlay = overlay(*model);
     if (active_overlay == Overlay::None) return;
     if (active_overlay == Overlay::Menu) {
-        rounded_box(canvas, 20, 42, 280, 150, 12, 3, Accent,
+        const layout::Rect panel = layout::codex_menu::Panel;
+        const layout::Rect mute = layout::codex_menu::Mute;
+        const layout::Rect switchMode = layout::codex_menu::SwitchMode;
+        const layout::Rect close = layout::codex_menu::Close;
+        rounded_box(canvas, panel.x, panel.y, panel.width, panel.height,
+                    12, 3, Accent,
                     Background);
-        centered_text(canvas, "BUDDY MENU", 160, 58, 2, Text);
-        rounded_box(canvas, 40, 85, 240, 50, 8, 2, Accent,
+        centered_text(canvas, "BUDDY MENU", 160, 50, 2, Text);
+        rounded_box(canvas, mute.x, mute.y, mute.width, mute.height, 8, 2,
+                    muted ? Dim : Green,
+                    muted ? Panel : TintGreen);
+        centered_text(canvas, muted ? "SOUND: MUTED" : "SOUND: ON",
+                      160, 89, 2, Text);
+        rounded_box(canvas, switchMode.x, switchMode.y,
+                    switchMode.width, switchMode.height, 8, 2, Accent,
                     TintBlue);
-        centered_text(canvas, "SWITCH BUDDY", 160, 98, 2, Text);
-        centered_text(canvas, "RESTART TO MODE SELECTOR", 160, 122, 1,
+        centered_text(canvas, "SWITCH BUDDY", 160, 132, 2, Text);
+        centered_text(canvas, "RESTART TO MODE SELECTOR", 160, 152, 1,
                       Muted);
-        rounded_box(canvas, 100, 154, 120, 28, 7, 1, Dim, Panel);
-        centered_text(canvas, "CLOSE", 160, 164, 1, Muted);
+        rounded_box(canvas, close.x, close.y, close.width, close.height,
+                    7, 1, Dim, Panel);
+        centered_text(canvas, "CLOSE", 160, 180, 1, Muted);
         return;
     }
     if (active_overlay == Overlay::Connection || active_overlay == Overlay::Listening) {
@@ -487,7 +501,8 @@ static void draw_overlay(Canvas *canvas, const Model *model)
 
 /* Composes background, selected page, tabs, and overlays into a full frame. */
 void render(const Model &model, const Action *activeAction,
-            std::uint32_t timeMs, std::span<std::uint16_t> pixels) noexcept
+            std::uint32_t timeMs, std::span<std::uint16_t> pixels,
+            bool muted) noexcept
 {
     if (pixels.size() < PixelCount) return;
     Canvas canvas = {.pixels = pixels.data()};
@@ -499,7 +514,7 @@ void render(const Model &model, const Action *activeAction,
         case Page::Navigate: draw_navigate(&canvas, &model, activeAction); break;
     }
     draw_tabs(&canvas, model.page, model.menuOpen);
-    draw_overlay(&canvas, &model);
+    draw_overlay(&canvas, &model, muted);
 }
 
 }  // namespace buddy::codex::ui

@@ -35,6 +35,7 @@ $cxx $cxxflags \
 $cxx $cxxflags \
   -I"$project_dir/components/claude_protocol/include" \
   -I"$project_dir/components/claude_model/include" \
+  -I"$project_dir/components/fixed_json/include" \
   "$project_dir/components/claude_protocol/claude_protocol.cpp" \
   "$project_dir/components/claude_model/claude_model.cpp" \
   "$test_dir/test_claude_protocol.cpp" \
@@ -42,6 +43,7 @@ $cxx $cxxflags \
 
 $cxx $cxxflags \
   -I"$project_dir/components/buddy_ui/include" \
+  -I"$project_dir/components/buddy_layout/include" \
   -I"$project_dir/components/claude_model/include" \
   "$project_dir/components/buddy_ui/buddy_ui.cpp" \
   "$project_dir/components/claude_model/claude_model.cpp" \
@@ -56,6 +58,7 @@ $cxx $cxxflags \
 
 $cxx $cxxflags \
   -I"$project_dir/components/codex_input/include" \
+  -I"$project_dir/components/buddy_layout/include" \
   -I"$project_dir/components/codex_model/include" \
   -I"$project_dir/components/codex_protocol/include" \
   "$project_dir/components/codex_input/codex_input.cpp" \
@@ -67,6 +70,7 @@ $cxx $cxxflags \
   -I"$project_dir/components/codex_rpc/include" \
   -I"$project_dir/components/codex_protocol/include" \
   -I"$project_dir/components/codex_model/include" \
+  -I"$project_dir/components/fixed_json/include" \
   "$project_dir/components/codex_rpc/codex_rpc.cpp" \
   "$project_dir/components/codex_model/codex_model.cpp" \
   "$test_dir/test_codex_rpc.cpp" \
@@ -76,6 +80,7 @@ $cxx $cxxflags \
 $cxx $cxxflags \
   -I"$project_dir/components/codex_controller/include" \
   -I"$project_dir/components/codex_input/include" \
+  -I"$project_dir/components/buddy_layout/include" \
   -I"$project_dir/components/codex_model/include" \
   -I"$project_dir/components/codex_protocol/include" \
   "$project_dir/components/codex_controller/codex_controller.cpp" \
@@ -87,6 +92,7 @@ $cxx $cxxflags \
 $cxx $cxxflags \
   -I"$project_dir/components/codex_ui/include" \
   -I"$project_dir/components/codex_input/include" \
+  -I"$project_dir/components/buddy_layout/include" \
   -I"$project_dir/components/codex_model/include" \
   -I"$project_dir/components/codex_protocol/include" \
   "$project_dir/components/codex_ui/codex_ui.cpp" \

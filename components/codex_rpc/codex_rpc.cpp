@@ -1,152 +1,23 @@
 #include "codex_rpc.hpp"
 
-#include <cctype>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <span>
 
+#include "fixed_json.hpp"
+
 namespace buddy::codex {
 namespace {
 
 constexpr std::size_t TokenCount = 160;
-
-enum class TokenType : std::uint8_t {
-    Undefined,
-    Object,
-    Array,
-    String,
-    Primitive,
-};
-
-struct Token {
-    TokenType type{TokenType::Undefined};
-    int start{-1};
-    int end{-1};
-    int parent{-1};
-};
-
-struct Parser {
-    std::array<Token, TokenCount> tokens{};
-    std::size_t count{};
-    int parent{-1};
-};
-
-/* Allocates and initializes one token in the fixed parser token array. */
-int newToken(Parser &parser, TokenType type, int start) noexcept
-{
-    if (parser.count >= TokenCount) return -1;
-    const int index = static_cast<int>(parser.count++);
-    parser.tokens[static_cast<std::size_t>(index)] =
-        Token{.type = type, .start = start, .end = -1, .parent = parser.parent};
-    return index;
-}
-
-/* Scans a quoted JSON string, accepting escapes without decoding them yet. */
-bool parseString(std::string_view json, std::size_t &position, Parser &parser) noexcept
-{
-    const int token = newToken(parser, TokenType::String, static_cast<int>(position) + 1);
-    if (token < 0) return false;
-    for (++position; position < json.size(); ++position) {
-        const auto byte = static_cast<unsigned char>(json[position]);
-        if (byte == '"') {
-            parser.tokens[static_cast<std::size_t>(token)].end = static_cast<int>(position);
-            return true;
-        }
-        if (byte < 0x20U) return false;
-        if (byte == '\\') {
-            if (++position >= json.size() ||
-                std::string_view{"\"\\/bfnrtu"}.find(json[position]) == std::string_view::npos)
-                return false;
-            if (json[position] == 'u') {
-                for (unsigned i = 0; i < 4; ++i) {
-                    if (++position >= json.size() ||
-                        !std::isxdigit(static_cast<unsigned char>(json[position])))
-                        return false;
-                }
-            }
-        }
-    }
-    return false;
-}
-
-/* Scans a number, boolean, or null primitive up to a structural delimiter. */
-bool parsePrimitive(std::string_view json, std::size_t &position, Parser &parser) noexcept
-{
-    const int token = newToken(parser, TokenType::Primitive, static_cast<int>(position));
-    if (token < 0) return false;
-    while (position < json.size() &&
-           std::string_view{" \t\r\n,]}"}.find(json[position]) == std::string_view::npos) {
-        const auto byte = static_cast<unsigned char>(json[position]);
-        if (byte < 0x20U || byte >= 0x7fU ||
-            std::string_view{":{[\""}.find(static_cast<char>(byte)) != std::string_view::npos)
-            return false;
-        ++position;
-    }
-    if (parser.tokens[static_cast<std::size_t>(token)].start == static_cast<int>(position))
-        return false;
-    parser.tokens[static_cast<std::size_t>(token)].end = static_cast<int>(position);
-    --position;
-    return true;
-}
-
-/* Tokenizes the small supported JSON subset without dynamic allocation. */
-bool tokenize(std::string_view json, Parser &parser) noexcept
-{
-    parser = Parser{};
-    parser.parent = -1;
-    for (std::size_t position = 0; position < json.size(); ++position) {
-        const char byte = json[position];
-        if (byte == '{' || byte == '[') {
-            const int token = newToken(
-                parser, byte == '{' ? TokenType::Object : TokenType::Array,
-                static_cast<int>(position));
-            if (token < 0) return false;
-            parser.parent = token;
-        } else if (byte == '}' || byte == ']') {
-            const TokenType expected = byte == '}' ? TokenType::Object : TokenType::Array;
-            const int open = parser.parent;
-            if (open < 0 || parser.tokens[static_cast<std::size_t>(open)].type != expected)
-                return false;
-            parser.tokens[static_cast<std::size_t>(open)].end = static_cast<int>(position) + 1;
-            parser.parent = parser.tokens[static_cast<std::size_t>(open)].parent;
-        } else if (byte == '"') {
-            if (!parseString(json, position, parser)) return false;
-        } else if (byte == ' ' || byte == '\t' || byte == '\r' || byte == '\n' ||
-                   byte == ':' || byte == ',') {
-            continue;
-        } else if (!parsePrimitive(json, position, parser)) {
-            return false;
-        }
-    }
-    if (parser.parent != -1 || parser.count == 0 ||
-        parser.tokens[0].type != TokenType::Object) return false;
-    for (std::size_t i = 0; i < parser.count; ++i)
-        if (parser.tokens[i].end < 0) return false;
-    return true;
-}
-
-/* Compares one string token directly with a field name. */
-bool tokenEquals(std::string_view json, const Token &token, std::string_view text) noexcept
-{
-    const auto length = static_cast<std::size_t>(token.end - token.start);
-    return token.type == TokenType::String && text.size() == length &&
-           json.substr(static_cast<std::size_t>(token.start), length) == text;
-}
-
-/* Finds the value token for a direct child key in an object token. */
-int objectValue(std::string_view json, const Parser &parser, int object,
-                std::string_view key) noexcept
-{
-    if (object < 0 || parser.tokens[static_cast<std::size_t>(object)].type != TokenType::Object)
-        return -1;
-    for (std::size_t i = static_cast<std::size_t>(object) + 1; i + 1 < parser.count; ++i) {
-        if (parser.tokens[i].parent == object && tokenEquals(json, parser.tokens[i], key))
-            return static_cast<int>(i) + 1;
-    }
-    return -1;
-}
+using Parser = fixed_json::Parser<TokenCount>;
+using fixed_json::Token;
+using fixed_json::TokenType;
+using fixed_json::objectValue;
+using fixed_json::tokenEquals;
+using fixed_json::tokenize;
 
 /* Copies and parses a numeric token as a bounded double value. */
 bool tokenNumber(std::string_view json, const Token &token, double &value) noexcept

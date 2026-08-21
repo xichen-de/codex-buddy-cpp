@@ -5,6 +5,7 @@
 #include <span>
 
 #include "claude_ble_transport.hpp"
+#include "buddy_audio.hpp"
 #include "claude_model.hpp"
 #include "claude_protocol.hpp"
 #include "display_power_policy.hpp"
@@ -58,11 +59,11 @@ private:
     claude::Decoder decoder_{};
     Queue<Event, QueueCapacity> queue_{};
     motion::Detector motion_{};
+    audio::Controller audio_{};
     DisplayPowerPolicy displayPowerPolicy_{};
     bool passkeyVisible_{};
     std::uint32_t passkey_{};
     platform::DisplayPower displayPower_{platform::DisplayPower::Normal};
-    bool speakerReady_{};
     bool imuReady_{};
     std::uint32_t lastMotionMs_{};
     std::uint32_t lastAnimationMs_{};

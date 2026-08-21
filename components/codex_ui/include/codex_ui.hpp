@@ -24,6 +24,7 @@ inline constexpr std::size_t PixelCount =
 
 /* Renders a complete Codex RGB565 frame; activeAction may be nullptr. */
 void render(const Model &model, const Action *activeAction,
-            std::uint32_t timeMs, std::span<std::uint16_t> pixels) noexcept;
+            std::uint32_t timeMs, std::span<std::uint16_t> pixels,
+            bool muted = false) noexcept;
 
 }  // namespace buddy::codex::ui

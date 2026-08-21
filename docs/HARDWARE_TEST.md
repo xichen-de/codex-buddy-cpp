@@ -148,6 +148,11 @@ on physical hardware. They do not change the completed Codex v1 record above.
   Claude reconnects.
 - [x] Connection, attention, approval, denial, and completion sounds are clear,
   brief, and do not reset or stall BLE.
+- [ ] Codex attention, completion, and error transitions each play one distinct
+  cue without repeating on an unchanged status heartbeat.
+- [ ] A Claude turn event containing `is_error: true` plays the error cue once.
+- [ ] Muting from either buddy suppresses all cues, survives a restart and mode
+  switch, and unmuting plays one confirmation chirp.
 - [ ] In both modes the screen dims after 15 seconds and turns off after one
   minute; one touch wakes it without activating the underlying control.
 - [ ] A Claude permission/passkey/waiting session and a Codex Agent requiring

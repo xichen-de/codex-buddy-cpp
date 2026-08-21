@@ -1,5 +1,7 @@
 #include "codex_input.hpp"
 
+#include "buddy_layout.hpp"
+
 namespace buddy::codex {
 namespace {
 
@@ -103,8 +105,12 @@ Action press(Input &input, const Model &model, std::uint16_t x, std::uint16_t y)
     const Overlay currentOverlay = overlay(model);
     if (currentOverlay == Overlay::Menu) {
         if (inMenuTab(x, y)) return Action{.type = ActionType::CloseMenu};
-        if (inRect(x, y, 40, 85, 240, 50)) return Action{.type = ActionType::SwitchMode};
-        if (inRect(x, y, 100, 154, 120, 28)) return Action{.type = ActionType::CloseMenu};
+        if (layout::contains(layout::codex_menu::Mute, x, y))
+            return Action{.type = ActionType::ToggleMute};
+        if (layout::contains(layout::codex_menu::SwitchMode, x, y))
+            return Action{.type = ActionType::SwitchMode};
+        if (layout::contains(layout::codex_menu::Close, x, y))
+            return Action{.type = ActionType::CloseMenu};
         return noAction();
     }
     if (inMenuTab(x, y)) return Action{.type = ActionType::OpenMenu};
@@ -179,6 +185,7 @@ bool actionEqual(const Action &left, const Action &right) noexcept
         case ActionType::DismissOverlay:
         case ActionType::OpenMenu:
         case ActionType::CloseMenu:
+        case ActionType::ToggleMute:
         case ActionType::SwitchMode:
             return true;
         case ActionType::Page: return left.page == right.page;

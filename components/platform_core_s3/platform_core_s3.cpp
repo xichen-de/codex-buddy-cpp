@@ -240,6 +240,9 @@ esp_err_t playSound(Sound sound) noexcept
             if (play_tone(523, 45) != ESP_OK) return ESP_FAIL;
             if (play_tone(659, 45) != ESP_OK) return ESP_FAIL;
             return play_tone(784, 90);
+        case Sound::Error:
+            if (play_tone(370, 85) != ESP_OK) return ESP_FAIL;
+            return play_tone(247, 120);
     }
     return ESP_ERR_INVALID_ARG;
 }

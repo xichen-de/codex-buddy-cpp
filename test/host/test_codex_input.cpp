@@ -113,9 +113,11 @@ static void test_buddy_menu_actions(void)
     const Event open = MenuOpened{};
     assert(applyEvent(model, open));
 
-    action = press(input, model, 160, 110);
+    action = press(input, model, 160, 95);
+    assert(action.type == ActionType::ToggleMute);
+    action = press(input, model, 160, 145);
     assert(action.type == ActionType::SwitchMode);
-    action = press(input, model, 160, 168);
+    action = press(input, model, 160, 185);
     assert(action.type == ActionType::CloseMenu);
     action = press(input, model, 280, 225);
     assert(action.type == ActionType::CloseMenu);

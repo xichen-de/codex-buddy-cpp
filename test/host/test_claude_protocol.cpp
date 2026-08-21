@@ -113,6 +113,21 @@ static void test_permission(void)
     assert(strstr(json, "\"decision\":\"deny\"") != nullptr);
 }
 
+static void test_turn_error(void)
+{
+    Model model;
+    init(model);
+    Action action = handle(model,
+        "{\"note\":\"evt\",\"evt\":\"turn\",\"role\":\"user\",\"content\":["
+        "{\"type\":\"tool_result\",\"is_error\":true}]}" );
+    assert(action.errorOccurred);
+
+    action = handle(model,
+        "{\"evt\":\"turn\",\"role\":\"assistant\",\"content\":["
+        "{\"type\":\"text\",\"text\":\"done\"}]}" );
+    assert(!action.errorOccurred);
+}
+
 int main(void)
 {
     test_decoder();
@@ -120,6 +135,7 @@ int main(void)
     test_time_sync();
     test_commands();
     test_permission();
+    test_turn_error();
     puts("claude_protocol tests passed");
     return 0;
 }
