@@ -148,9 +148,10 @@ on physical hardware. They do not change the completed Codex v1 record above.
   Claude reconnects.
 - [x] Connection, attention, approval, denial, and completion sounds are clear,
   brief, and do not reset or stall BLE.
-- [x] After 30 seconds without touch the screen turns off; one touch wakes it
-  without activating the underlying control, and a permission/passkey wakes it
-  automatically.
+- [ ] In both modes the screen dims after 15 seconds and turns off after one
+  minute; one touch wakes it without activating the underlying control.
+- [ ] A Claude permission/passkey/waiting session and a Codex Agent requiring
+  input restore and hold normal brightness until the action is resolved.
 - [x] Place the CoreS3 screen-up and flat once to establish orientation, then
   shake it firmly; the owl enters dizzy once without repeated false triggers.
 - [x] Leave the CoreS3 face-down for more than one second; the owl/display

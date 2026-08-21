@@ -14,6 +14,16 @@ namespace {
 
 constexpr char Tag[] = "codex_runtime";
 
+platform::DisplayPower platformPower(DisplayPowerLevel level) noexcept
+{
+    switch (level) {
+        case DisplayPowerLevel::Normal: return platform::DisplayPower::Normal;
+        case DisplayPowerLevel::Dimmed: return platform::DisplayPower::Dimmed;
+        case DisplayPowerLevel::Off: return platform::DisplayPower::Off;
+    }
+    return platform::DisplayPower::Normal;
+}
+
 }  // namespace
 
 bool CodexRuntime::sendJson(std::string_view json) noexcept
@@ -29,11 +39,46 @@ bool CodexRuntime::sendJson(std::string_view json) noexcept
 
 void CodexRuntime::render() noexcept
 {
+    if (displayPower_ == platform::DisplayPower::Off) return;
     const codex::Action *active = input_.active ? &input_.action : nullptr;
     codex::ui::render(model_, active, uptimeMs(), platform::framebuffer());
     const esp_err_t error = platform::present();
     if (error != ESP_OK)
         ESP_LOGE(Tag, "Display update failed: %s", esp_err_to_name(error));
+}
+
+void CodexRuntime::wakeDisplay(std::uint32_t nowMs) noexcept
+{
+    displayPowerPolicy_.recordInteraction(nowMs);
+    if (displayPower_ == platform::DisplayPower::Normal) return;
+    const esp_err_t error =
+        platform::setDisplayPower(platform::DisplayPower::Normal);
+    if (error != ESP_OK) {
+        ESP_LOGW(Tag, "Codex display could not wake: %s",
+                 esp_err_to_name(error));
+        return;
+    }
+    displayPower_ = platform::DisplayPower::Normal;
+}
+
+bool CodexRuntime::updateDisplayPower(std::uint32_t nowMs) noexcept
+{
+    const bool attentionRequired =
+        std::ranges::any_of(model_.slots, [](const codex::Slot &slot) {
+            return slot.status == codex::SlotStatus::RequiresInput;
+        });
+    const platform::DisplayPower desired = platformPower(
+        displayPowerPolicy_.desired(nowMs, attentionRequired));
+    if (desired == displayPower_) return false;
+    const bool wasOff = displayPower_ == platform::DisplayPower::Off;
+    const esp_err_t error = platform::setDisplayPower(desired);
+    if (error != ESP_OK) {
+        ESP_LOGW(Tag, "Codex display power change failed: %s",
+                 esp_err_to_name(error));
+        return false;
+    }
+    displayPower_ = desired;
+    return wasOff && desired != platform::DisplayPower::Off;
 }
 
 void CodexRuntime::onConnectionChanged(bool connected) noexcept
@@ -127,6 +172,12 @@ bool CodexRuntime::processTouch() noexcept
         return false;
     }
 
+    if (touch.type == platform::TouchType::Pressed) {
+        const bool wasOff = displayPower_ == platform::DisplayPower::Off;
+        wakeDisplay(uptimeMs());
+        if (wasOff) return true;
+    }
+
     codex::Action action;
     codex::ActionPhase phase{codex::ActionPhase::Press};
     switch (touch.type) {
@@ -156,7 +207,8 @@ bool CodexRuntime::processTouch() noexcept
 
 bool CodexRuntime::animationDue() noexcept
 {
-    if (model_.page != codex::Page::Agents ||
+    if (displayPower_ == platform::DisplayPower::Off ||
+        model_.page != codex::Page::Agents ||
         codex::overlay(model_) != codex::Overlay::None) return false;
     const bool breathing = std::ranges::any_of(model_.slots, [](const auto &slot) {
         return slot.breathing || slot.status == codex::SlotStatus::Thinking;
@@ -178,6 +230,8 @@ void CodexRuntime::run() noexcept
     codex::init(model_);
     decoder_.reset();
     codex::init(input_);
+    displayPower_ = platform::DisplayPower::Normal;
+    displayPowerPolicy_.recordInteraction(uptimeMs());
     if (!queue_.initialize()) {
         ESP_LOGE(Tag, "Could not allocate Codex runtime queue");
         return;
@@ -199,6 +253,7 @@ void CodexRuntime::run() noexcept
                     {event.report.data(), event.reportLength});
         }
         redraw |= processTouch();
+        redraw |= updateDisplayPower(uptimeMs());
         redraw |= animationDue();
         if (redraw) render();
     }

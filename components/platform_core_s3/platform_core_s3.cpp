@@ -18,7 +18,8 @@
 namespace buddy::platform {
 
 static const char *TAG = "platform_core_s3";
-static constexpr int ComfortableBrightness = 25;
+static constexpr int NormalBrightness = 15;
+static constexpr int DimmedBrightness = 2;
 static esp_lcd_panel_handle_t s_panel;
 static esp_lcd_panel_io_handle_t s_panel_io;
 static esp_lcd_touch_handle_t s_touch;
@@ -79,7 +80,7 @@ esp_err_t initialize() noexcept
              s_panel_io, &callbacks, nullptr)) != ESP_OK ||
         (error = bsp_display_brightness_init()) != ESP_OK ||
         (error = esp_lcd_panel_disp_on_off(s_panel, true)) != ESP_OK ||
-        (error = bsp_display_brightness_set(ComfortableBrightness)) != ESP_OK ||
+        (error = bsp_display_brightness_set(NormalBrightness)) != ESP_OK ||
         (error = bsp_touch_new(nullptr, &s_touch)) != ESP_OK) {
         ESP_LOGE(TAG, "Display/touch initialization failed: %s",
                  esp_err_to_name(error));
@@ -120,15 +121,17 @@ esp_err_t present() noexcept
     return ESP_OK;
 }
 
-/* Coordinates panel sleep/display commands with the CoreS3 backlight. */
-esp_err_t setDisplayAwake(bool awake) noexcept
+/* Coordinates panel sleep/display commands with the requested backlight level. */
+esp_err_t setDisplayPower(DisplayPower power) noexcept
 {
     if (s_panel == nullptr) return ESP_ERR_INVALID_STATE;
     esp_err_t error;
-    if (awake) {
+    if (power != DisplayPower::Off) {
         error = esp_lcd_panel_disp_on_off(s_panel, true);
         if (error == ESP_OK)
-            error = bsp_display_brightness_set(ComfortableBrightness);
+            error = bsp_display_brightness_set(
+                power == DisplayPower::Normal
+                    ? NormalBrightness : DimmedBrightness);
     } else {
         error = bsp_display_brightness_set(0);
         if (error == ESP_OK) error = esp_lcd_panel_disp_on_off(s_panel, false);

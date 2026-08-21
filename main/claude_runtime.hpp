@@ -7,6 +7,7 @@
 #include "claude_ble_transport.hpp"
 #include "claude_model.hpp"
 #include "claude_protocol.hpp"
+#include "display_power_policy.hpp"
 #include "freertos_queue.hpp"
 #include "motion_detector.hpp"
 #include "platform_core_s3.hpp"
@@ -50,7 +51,6 @@ private:
 
     static constexpr std::size_t QueueCapacity = 12;
     static constexpr std::uint32_t SnapshotTimeoutMs = 30'000;
-    static constexpr std::uint32_t ScreenTimeoutMs = 30'000;
     static constexpr std::uint32_t MotionPollMs = 40;
     static constexpr std::uint32_t AnimationPeriodMs = 120;
 
@@ -58,11 +58,11 @@ private:
     claude::Decoder decoder_{};
     Queue<Event, QueueCapacity> queue_{};
     motion::Detector motion_{};
+    DisplayPowerPolicy displayPowerPolicy_{};
     bool passkeyVisible_{};
     std::uint32_t passkey_{};
-    bool displayAwake_{};
+    platform::DisplayPower displayPower_{platform::DisplayPower::Normal};
     bool speakerReady_{};
-    std::uint32_t lastInteractionMs_{};
     bool imuReady_{};
     std::uint32_t lastMotionMs_{};
     std::uint32_t lastAnimationMs_{};

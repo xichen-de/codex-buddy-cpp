@@ -10,7 +10,9 @@
 #include "codex_input.hpp"
 #include "codex_model.hpp"
 #include "codex_protocol.hpp"
+#include "display_power_policy.hpp"
 #include "freertos_queue.hpp"
+#include "platform_core_s3.hpp"
 
 namespace buddy::runtime {
 
@@ -40,6 +42,8 @@ private:
         std::span<const std::uint8_t> report) noexcept;
     [[nodiscard]] bool processTouch() noexcept;
     [[nodiscard]] bool animationDue() noexcept;
+    void wakeDisplay(std::uint32_t nowMs) noexcept;
+    [[nodiscard]] bool updateDisplayPower(std::uint32_t nowMs) noexcept;
 
     static constexpr std::size_t QueueCapacity = 12;
     static constexpr std::uint32_t AnimationPeriodMs = 80;
@@ -48,6 +52,8 @@ private:
     codex::Decoder decoder_{};
     codex::Input input_{};
     Queue<Event, QueueCapacity> queue_{};
+    DisplayPowerPolicy displayPowerPolicy_{};
+    platform::DisplayPower displayPower_{platform::DisplayPower::Normal};
     std::uint32_t lastAnimationMs_{};
 };
 
