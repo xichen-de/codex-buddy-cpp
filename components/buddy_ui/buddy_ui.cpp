@@ -5,6 +5,10 @@
 #include <cstdio>
 #include <cstring>
 
+#ifdef BUDDY_USE_LVGL_FONT
+#include "ui_font.hpp"
+#endif
+
 namespace buddy::display {
 
 constexpr std::uint16_t rgb565(unsigned red, unsigned green,
@@ -14,19 +18,20 @@ constexpr std::uint16_t rgb565(unsigned red, unsigned green,
         ((red & 0xf8U) << 8) | ((green & 0xfcU) << 3) | (blue >> 3));
 }
 
-constexpr auto Background = rgb565(9, 13, 22);
-constexpr auto Panel = rgb565(22, 30, 45);
-constexpr auto Text = rgb565(242, 246, 252);
-constexpr auto Muted = rgb565(146, 159, 180);
-constexpr auto Dim = rgb565(76, 89, 108);
-constexpr auto CodexColor = rgb565(45, 145, 235);
-constexpr auto ClaudeColor = rgb565(215, 118, 76);
-constexpr auto Owl = rgb565(184, 125, 73);
-constexpr auto OwlLight = rgb565(233, 195, 133);
-constexpr auto Amber = rgb565(245, 170, 40);
-constexpr auto Green = rgb565(35, 190, 100);
-constexpr auto Red = rgb565(230, 65, 75);
-constexpr auto Cyan = rgb565(45, 190, 225);
+constexpr auto Background = rgb565(16, 19, 24);
+constexpr auto Panel = rgb565(25, 30, 37);
+constexpr auto Outline = rgb565(53, 61, 71);
+constexpr auto Text = rgb565(199, 206, 214);
+constexpr auto Muted = rgb565(145, 155, 167);
+constexpr auto Dim = rgb565(82, 92, 104);
+constexpr auto CodexColor = rgb565(75, 135, 188);
+constexpr auto ClaudeColor = rgb565(181, 105, 72);
+constexpr auto Owl = rgb565(161, 111, 69);
+constexpr auto OwlLight = rgb565(206, 174, 119);
+constexpr auto Amber = rgb565(181, 132, 68);
+constexpr auto Green = rgb565(67, 146, 101);
+constexpr auto Red = rgb565(181, 83, 89);
+constexpr auto Cyan = rgb565(73, 153, 174);
 constexpr int TabTop = 210;
 
 struct Canvas {
@@ -104,6 +109,16 @@ static void box(Canvas *canvas, int x, int y, int width, int height,
     rounded(canvas, x + 2, y + 2, width - 4, height - 4, 6, fill);
 }
 
+/* Draws a quiet surface card with a short semantic accent along its top. */
+static void card(Canvas *canvas, int x, int y, int width, int height,
+                 uint16_t accent)
+{
+    rounded(canvas, x, y, width, height, 8, Outline);
+    rounded(canvas, x + 1, y + 1, width - 2, height - 2, 7, Panel);
+    rounded(canvas, x + 18, y + 1, width - 36, 4, 2, accent);
+}
+
+#ifndef BUDDY_USE_LVGL_FONT
 /* Returns the five-column bitmap for a supported character or fallback glyph. */
 static const uint8_t *glyph(char value)
 {
@@ -148,12 +163,17 @@ static const uint8_t *glyph(char value)
     if (value == '!') return exclamation;
     return blank;
 }
+#endif
 
 /* Calculates pixel width for fixed 5x7 glyphs plus spacing. */
 static int text_width(const char *text, int scale)
 {
+#ifdef BUDDY_USE_LVGL_FONT
+    return text == nullptr ? 0 : buddy::font::textWidth(text, scale);
+#else
     return text == nullptr || text[0] == '\0' ? 0
         : static_cast<int>(strlen(text)) * 6 * scale - scale;
+#endif
 }
 
 /* Rasterizes scaled bitmap text at the requested top-left coordinate. */
@@ -161,6 +181,10 @@ static void text(Canvas *canvas, const char *value, int x, int y, int scale,
                  uint16_t color)
 {
     if (value == nullptr) return;
+#ifdef BUDDY_USE_LVGL_FONT
+    buddy::font::draw({canvas->pixels, PixelCount}, Width, Height, value,
+                      x, y, scale, color);
+#else
     for (; *value != '\0'; ++value, x += 6 * scale) {
         const uint8_t *columns = glyph(*value);
         for (int column = 0; column < 5; ++column)
@@ -169,6 +193,7 @@ static void text(Canvas *canvas, const char *value, int x, int y, int scale,
                     rect(canvas, x + column * scale, y + row * scale,
                          scale, scale, color);
     }
+#endif
 }
 
 /* Centers bitmap text horizontally around a requested coordinate. */
@@ -212,13 +237,13 @@ void renderSelector(std::span<std::uint16_t> pixels) noexcept
     centered(&canvas, "CHOOSE YOUR BUDDY", 160, 18, 2, Text);
     centered(&canvas, "BLUETOOTH STARTS AFTER SELECTION", 160, 43, 1, Muted);
 
-    box(&canvas, 12, 66, 142, 135, CodexColor, Panel);
+    card(&canvas, 12, 66, 142, 135, CodexColor);
     centered(&canvas, "CODEX", 83, 84, 3, Text);
     centered(&canvas, "6 AGENTS", 83, 124, 2, CodexColor);
     centered(&canvas, "CHATGPT", 83, 158, 1, Muted);
     centered(&canvas, "TAP TO START", 83, 179, 1, Text);
 
-    box(&canvas, 166, 66, 142, 135, ClaudeColor, Panel);
+    card(&canvas, 166, 66, 142, 135, ClaudeColor);
     draw_mini_owl(&canvas, 237, 99, Amber);
     centered(&canvas, "CLAUDE", 237, 124, 2, Text);
     centered(&canvas, "OWL BUDDY", 237, 151, 1, ClaudeColor);
@@ -329,17 +354,16 @@ static void draw_owl(Canvas *canvas, buddy::claude::PetState state,
     }
 }
 
-/* Draws the Claude title and live/secure connection badges. */
+/* Draws the Claude title and live connection status. */
 static void draw_header(Canvas *canvas, const buddy::claude::Model *model,
                         bool battery_known, uint8_t battery_percent,
                         bool charging)
 {
     rect(canvas, 0, 0, Width, 30, Panel);
     text(canvas, "CLAUDE", 7, 8, 2, Text);
-    draw_mini_owl(canvas, 88, 15, ClaudeColor);
     const bool connected = model->connection == buddy::claude::Connection::Connected;
-    circle(canvas, 239, 15, 4, connected ? Green : Dim);
-    text(canvas, connected ? "LIVE" : "PAIR", 249, 12, 1,
+    circle(canvas, 247, 15, 4, connected ? Green : Dim);
+    text(canvas, connected ? "LIVE" : "PAIR", 257, 12, 1,
          connected ? Text : Muted);
     if (battery_known) {
         char battery[8];
@@ -443,9 +467,8 @@ static void draw_clock_page(Canvas *canvas, const buddy::claude::Model *model,
 {
     int64_t local = 0;
     if (!buddy::claude::clockSeconds(*model, now_ms, local) || local < 0) {
-        draw_mini_owl(canvas, 160, 87, ClaudeColor);
-        centered(canvas, "WAITING FOR TIME", 160, 121, 2, Text);
-        centered(canvas, "CLAUDE WILL SYNC THE CLOCK", 160, 151, 1, Muted);
+        centered(canvas, "WAITING FOR TIME", 160, 87, 2, Text);
+        centered(canvas, "CLAUDE WILL SYNC THE CLOCK", 160, 121, 1, Muted);
         return;
     }
     const int64_t days = local / 86400;
@@ -471,7 +494,6 @@ static void draw_clock_page(Canvas *canvas, const buddy::claude::Model *model,
     snprintf(date, sizeof(date), "%s  %04d-%02u-%02u",
              weekdays[weekday], year, month, day);
     centered(canvas, date, 160, 132, 2, OwlLight);
-    draw_mini_owl(canvas, 160, 178, ClaudeColor);
 }
 
 /* Draws device identity, decision statistics, and the mode-switch control. */

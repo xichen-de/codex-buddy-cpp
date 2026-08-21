@@ -18,6 +18,7 @@
 namespace buddy::platform {
 
 static const char *TAG = "platform_core_s3";
+static constexpr int ComfortableBrightness = 25;
 static esp_lcd_panel_handle_t s_panel;
 static esp_lcd_panel_io_handle_t s_panel_io;
 static esp_lcd_touch_handle_t s_touch;
@@ -78,7 +79,7 @@ esp_err_t initialize() noexcept
              s_panel_io, &callbacks, nullptr)) != ESP_OK ||
         (error = bsp_display_brightness_init()) != ESP_OK ||
         (error = esp_lcd_panel_disp_on_off(s_panel, true)) != ESP_OK ||
-        (error = bsp_display_backlight_on()) != ESP_OK ||
+        (error = bsp_display_brightness_set(ComfortableBrightness)) != ESP_OK ||
         (error = bsp_touch_new(nullptr, &s_touch)) != ESP_OK) {
         ESP_LOGE(TAG, "Display/touch initialization failed: %s",
                  esp_err_to_name(error));
@@ -126,9 +127,10 @@ esp_err_t setDisplayAwake(bool awake) noexcept
     esp_err_t error;
     if (awake) {
         error = esp_lcd_panel_disp_on_off(s_panel, true);
-        if (error == ESP_OK) error = bsp_display_backlight_on();
+        if (error == ESP_OK)
+            error = bsp_display_brightness_set(ComfortableBrightness);
     } else {
-        error = bsp_display_backlight_off();
+        error = bsp_display_brightness_set(0);
         if (error == ESP_OK) error = esp_lcd_panel_disp_on_off(s_panel, false);
     }
     return error;

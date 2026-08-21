@@ -13,7 +13,9 @@
 - Explain meaningful design choices in plain language so maintainers can review
   and modify the code.
 - Prefer small, readable changes over broad rewrites or generated abstractions.
-- Ask before changing hardware pin assignments, partition layouts, storage formats, or dependencies.
+- Ask before changing hardware pin assignments, partition layouts, storage formats,
+  or non-UI dependencies. Focused UI libraries are allowed when they materially
+  improve the on-device experience; document why they are needed.
 - Never commit secrets, Wi-Fi credentials, private keys, or device-specific provisioning data.
 
 ## Code conventions
