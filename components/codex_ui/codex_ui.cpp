@@ -3,6 +3,10 @@
 #include <cstdio>
 #include <cstring>
 
+#ifdef BUDDY_USE_LVGL_FONT
+#include "ui_font.hpp"
+#endif
+
 namespace buddy::codex::ui {
 
 constexpr std::uint16_t rgb565(unsigned red, unsigned green,
@@ -12,23 +16,24 @@ constexpr std::uint16_t rgb565(unsigned red, unsigned green,
         ((red & 0xf8U) << 8) | ((green & 0xfcU) << 3) | (blue >> 3));
 }
 
-constexpr auto Background = rgb565(7, 11, 18);
-constexpr auto Panel = rgb565(19, 27, 40);
-constexpr auto PanelPressed = rgb565(42, 56, 76);
-constexpr auto PanelDisabled = rgb565(14, 20, 29);
-constexpr auto Text = rgb565(242, 246, 252);
-constexpr auto Muted = rgb565(150, 162, 181);
-constexpr auto Dim = rgb565(83, 94, 111);
-constexpr auto Accent = rgb565(45, 145, 235);
-constexpr auto Cyan = rgb565(45, 190, 225);
-constexpr auto Green = rgb565(35, 190, 100);
-constexpr auto Red = rgb565(230, 65, 75);
-constexpr auto Amber = rgb565(245, 170, 40);
-constexpr auto TintBlue = rgb565(15, 42, 65);
-constexpr auto TintCyan = rgb565(13, 48, 62);
-constexpr auto TintGreen = rgb565(12, 47, 31);
-constexpr auto TintRed = rgb565(54, 22, 29);
-constexpr auto TintAmber = rgb565(55, 39, 17);
+constexpr auto Background = rgb565(16, 19, 24);
+constexpr auto Panel = rgb565(25, 30, 37);
+constexpr auto PanelPressed = rgb565(41, 49, 59);
+constexpr auto PanelDisabled = rgb565(20, 24, 30);
+constexpr auto Outline = rgb565(53, 61, 71);
+constexpr auto Text = rgb565(199, 206, 214);
+constexpr auto Muted = rgb565(145, 155, 167);
+constexpr auto Dim = rgb565(82, 92, 104);
+constexpr auto Accent = rgb565(75, 135, 188);
+constexpr auto Cyan = rgb565(73, 153, 174);
+constexpr auto Green = rgb565(67, 146, 101);
+constexpr auto Red = rgb565(181, 83, 89);
+constexpr auto Amber = rgb565(181, 132, 68);
+constexpr auto TintBlue = rgb565(23, 36, 48);
+constexpr auto TintCyan = rgb565(22, 39, 46);
+constexpr auto TintGreen = rgb565(22, 38, 30);
+constexpr auto TintRed = rgb565(43, 27, 31);
+constexpr auto TintAmber = rgb565(43, 35, 23);
 constexpr int TabTop = 210;
 
 struct Canvas {
@@ -87,6 +92,7 @@ static void rounded_box(Canvas *canvas, int x, int y, int width, int height,
                       radius - thickness, background);
 }
 
+#ifndef BUDDY_USE_LVGL_FONT
 /* Returns the five-column bitmap for a supported character or fallback glyph. */
 static const uint8_t *glyph(char value)
 {
@@ -121,12 +127,17 @@ static const uint8_t *glyph(char value)
     if (value == '/') return slash;
     return blank;
 }
+#endif
 
 /* Calculates pixel width for fixed 5x7 glyphs plus one-column spacing. */
 static int text_width(const char *text, int scale)
 {
+#ifdef BUDDY_USE_LVGL_FONT
+    return text == nullptr ? 0 : buddy::font::textWidth(text, scale);
+#else
     return text == nullptr ? 0
                            : static_cast<int>(strlen(text)) * 6 * scale - scale;
+#endif
 }
 
 /* Rasterizes scaled bitmap text from left to right at a baseline origin. */
@@ -134,6 +145,10 @@ static void draw_text(Canvas *canvas, const char *text, int x, int y,
                       int scale, uint16_t color)
 {
     if (text == nullptr || scale <= 0) return;
+#ifdef BUDDY_USE_LVGL_FONT
+    buddy::font::draw({canvas->pixels, PixelCount}, Width, Height, text,
+                      x, y, scale, color);
+#else
     for (; *text != '\0'; ++text, x += 6 * scale) {
         const uint8_t *columns = glyph(*text);
         for (int column = 0; column < 5; ++column)
@@ -142,6 +157,7 @@ static void draw_text(Canvas *canvas, const char *text, int x, int y,
                     fill_rect(canvas, x + column * scale, y + row * scale,
                               scale, scale, color);
     }
+#endif
 }
 
 /* Centers bitmap text horizontally around a requested x coordinate. */
@@ -184,10 +200,12 @@ static void button(Canvas *canvas, int x, int y, int width, int height,
                    const char *label, const char *hint, uint16_t border,
                    uint16_t background, bool pressed, bool enabled)
 {
-    rounded_box(canvas, x, y, width, height, 7, 2,
-                enabled ? border : Dim,
+    rounded_box(canvas, x, y, width, height, 7, 1,
+                enabled ? (pressed ? border : Outline) : Dim,
                 enabled ? (pressed ? PanelPressed : background)
                         : PanelDisabled);
+    if (enabled)
+        fill_rounded_rect(canvas, x + 12, y + 1, width - 24, 3, 1, border);
     const int scale = strlen(label) > 8 ? 1 : 2;
     centered_text(canvas, label, x + width / 2,
                   y + (hint == nullptr ? height / 2 - 7 * scale / 2 : height / 2 - 13),
@@ -230,20 +248,20 @@ static uint16_t slot_accent(const Slot *slot, uint32_t time_ms)
 {
     /* Stable semantic colors keep status readable across host lighting themes.
        Unknown future states retain the raw host color as a fallback. */
-    unsigned red = 83;
-    unsigned green = 94;
-    unsigned blue = 111;
+    unsigned red = 82;
+    unsigned green = 92;
+    unsigned blue = 104;
     switch (slot->status) {
-        case SlotStatus::Idle: red = 45; green = 145; blue = 235; break;
-        case SlotStatus::Thinking: red = 45; green = 190; blue = 225; break;
-        case SlotStatus::Complete: red = 35; green = 190; blue = 100; break;
-        case SlotStatus::RequiresInput: red = 245; green = 170; blue = 40; break;
-        case SlotStatus::Error: red = 230; green = 65; blue = 75; break;
+        case SlotStatus::Idle: red = 75; green = 135; blue = 188; break;
+        case SlotStatus::Thinking: red = 73; green = 153; blue = 174; break;
+        case SlotStatus::Complete: red = 67; green = 146; blue = 101; break;
+        case SlotStatus::RequiresInput: red = 181; green = 132; blue = 68; break;
+        case SlotStatus::Error: red = 181; green = 83; blue = 89; break;
         case SlotStatus::Unknown:
             red = (slot->color >> 16) & 0xffU;
             green = (slot->color >> 8) & 0xffU;
             blue = slot->color & 0xffU;
-            if (red + green + blue < 80U) red = green = blue = 111U;
+            if (red + green + blue < 80U) red = green = blue = 104U;
             break;
         case SlotStatus::Unassigned: break;
     }
@@ -292,7 +310,7 @@ static void draw_header(Canvas *canvas, const Model *model)
     const uint16_t connection_color = connected ? Green
         : model->connection == Connection::Connecting ? Amber
                                                         : Dim;
-    rounded_box(canvas, 245, 6, 68, 18, 8, 1, Dim, Background);
+    rounded_box(canvas, 245, 6, 68, 18, 8, 1, Outline, Background);
     fill_circle(canvas, 256, 15, 4, connection_color);
     draw_text(canvas, connected ? "LIVE" : "PAIR", 266, 12, 1,
               connected ? Text : Muted);
@@ -368,21 +386,20 @@ static void draw_agents(Canvas *canvas, const Model *model,
         const Slot *slot = &model->slots[index];
         const uint16_t accent = slot_accent(slot, time_ms);
         const bool enabled = model->connection == Connection::Connected;
-        rounded_box(canvas, x, y, 100, 76, 7, 2,
-                    enabled ? accent : Dim,
+        rounded_box(canvas, x, y, 100, 76, 7, 1,
+                    enabled ? (model->selectedSlot == index ? Text : Outline)
+                            : Dim,
                     action_matches(active, ActionType::Slot, index)
                         ? PanelPressed : slot_background(slot->status));
-        fill_rect(canvas, x + 2, y + 9, 4, 58, accent);
+        fill_rounded_rect(canvas, x + 12, y + 1, 76, 3, 1, accent);
         draw_text(canvas, number, x + 12, y + 9, 1, accent);
         fill_circle(canvas, x + 88, y + 13, 4, accent);
         centered_text(canvas, label, x + 50, y + 28, 2,
                       enabled ? Text : Muted);
         centered_text(canvas, slotStatusLabel(slot->status), x + 50,
                       y + 58, 1, enabled ? accent : Dim);
-        if (model->selectedSlot == index) {
-            fill_rect(canvas, x + 78, y, 22, 3, Text);
-            fill_rect(canvas, x + 97, y, 3, 20, Text);
-        }
+        if (model->selectedSlot == index)
+            fill_circle(canvas, x + 88, y + 13, 2, Text);
     }
 }
 

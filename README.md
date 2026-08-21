@@ -49,7 +49,8 @@ The device asks which buddy to start before enabling Bluetooth:
 | <img src="docs/images/claude-owl.png" alt="Claude Owl page" width="240"> | <img src="docs/images/claude-activity.png" alt="Claude Activity page" width="240"> | <img src="docs/images/claude-clock.png" alt="Claude Clock page" width="240"> | <img src="docs/images/claude-info.png" alt="Claude Info page" width="240"> |
 
 These previews come from the same 320 x 240 RGB565 renderers used by the
-physical display.
+physical display, including LVGL's anti-aliased Montserrat fonts. Regenerate
+them with `sh scripts/render_ui_previews.sh` after UI changes.
 
 ## Using Codex mode
 
