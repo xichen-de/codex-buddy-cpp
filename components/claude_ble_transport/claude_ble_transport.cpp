@@ -255,6 +255,20 @@ static void gatts_callback(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if,
             s_peer_known = true;
             memcpy(s_peer_address, parameters->connect.remote_bda,
                    sizeof(s_peer_address));
+            {
+                esp_ble_conn_update_params_t connection{};
+                memcpy(connection.bda, parameters->connect.remote_bda,
+                       sizeof(connection.bda));
+                connection.min_int = 0x18;
+                connection.max_int = 0x28;
+                connection.latency = 0;
+                connection.timeout = 400;
+                const esp_err_t interval_error =
+                    esp_ble_gap_update_conn_params(&connection);
+                if (interval_error != ESP_OK)
+                    ESP_LOGW(TAG, "Connection interval request failed: %s",
+                             esp_err_to_name(interval_error));
+            }
             notify_connection(true);
             esp_ble_set_encryption(parameters->connect.remote_bda,
                                    ESP_BLE_SEC_ENCRYPT_MITM);

@@ -58,7 +58,7 @@ The following values are source-observed and reported reference-verified:
 | Appearance | Generic HID |
 | Advertised service | HID service created by the BLE HID implementation |
 | Scan response | Enabled |
-| Preferred connection interval | Minimum `0x06`, maximum `0x12` |
+| Preferred connection interval | Minimum `0x18`, maximum `0x28` (30-50 ms) |
 | Pairing | Bonding, no input/output capability (Just Works) |
 
 The reference pre-swaps the 16-bit PnP values because its Arduino-ESP32 2.x HID

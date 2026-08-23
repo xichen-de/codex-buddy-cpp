@@ -9,11 +9,13 @@
 #include "esp_lcd_panel_ops.h"
 #include "esp_lcd_touch.h"
 #include "esp_log.h"
+#include "esp_pm.h"
 #include "esp_codec_dev.h"
 #include "driver/i2c_master.h"
 #include "bmi270.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
+#include "freertos/task.h"
 
 namespace buddy::platform {
 
@@ -29,9 +31,98 @@ static bool s_touch_active;
 static uint16_t s_touch_x;
 static uint16_t s_touch_y;
 static esp_codec_dev_handle_t s_speaker;
+static bool s_speaker_open;
 static int16_t s_tone_samples[2646];
 static i2c_master_dev_handle_t s_rtc;
 static bmi270_handle_t *s_imu;
+static i2c_master_dev_handle_t s_pmu;
+static i2c_master_dev_handle_t s_io_expander;
+static esp_pm_lock_handle_t s_display_sleep_lock;
+static bool s_display_sleep_lock_held;
+
+static constexpr uint8_t PmuLdoEnableRegister = 0x90;
+static constexpr uint8_t PmuBacklightEnable = 0x80;
+static constexpr uint8_t PmuBacklightVoltageRegister = 0x99;
+static constexpr uint8_t IoExpanderPort0Register = 0x02;
+static constexpr uint8_t IoExpanderSpeakerReset = 1U << 2;
+static constexpr uint8_t ImuPowerControlRegister = 0x7d;
+static constexpr uint8_t ImuAccelerometerEnable = 0x04;
+
+static esp_err_t read_register(i2c_master_dev_handle_t device,
+                               uint8_t reg, uint8_t &value) noexcept
+{
+    return i2c_master_transmit_receive(
+        device, &reg, sizeof(reg), &value, sizeof(value), 1000);
+}
+
+static esp_err_t write_register(i2c_master_dev_handle_t device,
+                                uint8_t reg, uint8_t value) noexcept
+{
+    const uint8_t data[] = {reg, value};
+    return i2c_master_transmit(device, data, sizeof(data), 1000);
+}
+
+static esp_err_t update_register(i2c_master_dev_handle_t device,
+                                 uint8_t reg, uint8_t mask,
+                                 bool enabled) noexcept
+{
+    uint8_t value = 0;
+    esp_err_t error = read_register(device, reg, value);
+    if (error != ESP_OK) return error;
+    value = enabled ? static_cast<uint8_t>(value | mask)
+                    : static_cast<uint8_t>(value & ~mask);
+    return write_register(device, reg, value);
+}
+
+static esp_err_t add_power_devices() noexcept
+{
+    i2c_master_bus_handle_t bus = nullptr;
+    esp_err_t error = i2c_master_get_bus_handle(BSP_I2C_NUM, &bus);
+    if (error != ESP_OK) return error;
+    i2c_device_config_t config{};
+    config.dev_addr_length = I2C_ADDR_BIT_LEN_7;
+    config.scl_speed_hz = 400000;
+    config.device_address = 0x34;
+    error = i2c_master_bus_add_device(bus, &config, &s_pmu);
+    if (error != ESP_OK) return error;
+    config.device_address = 0x58;
+    return i2c_master_bus_add_device(bus, &config, &s_io_expander);
+}
+
+static esp_err_t set_backlight(int brightness_percent) noexcept
+{
+    if (s_pmu == nullptr) return ESP_ERR_INVALID_STATE;
+    if (brightness_percent <= 0) {
+        esp_err_t error = update_register(
+            s_pmu, PmuLdoEnableRegister, PmuBacklightEnable, false);
+        if (error != ESP_OK) return error;
+        return write_register(s_pmu, PmuBacklightVoltageRegister, 0);
+    }
+    if (brightness_percent > 100) brightness_percent = 100;
+    esp_err_t error = update_register(
+        s_pmu, PmuLdoEnableRegister, PmuBacklightEnable, true);
+    if (error != ESP_OK) return error;
+    const uint8_t voltage = static_cast<uint8_t>(
+        20 + 8 * brightness_percent / 100);
+    return write_register(s_pmu, PmuBacklightVoltageRegister, voltage);
+}
+
+static esp_err_t set_speaker_hardware(bool enabled) noexcept
+{
+    if (s_io_expander == nullptr)
+        return ESP_ERR_INVALID_STATE;
+    if (enabled) {
+        const esp_err_t error = update_register(
+            s_io_expander, IoExpanderPort0Register,
+            IoExpanderSpeakerReset, true);
+        if (error == ESP_OK) vTaskDelay(pdMS_TO_TICKS(2));
+        return error;
+    }
+    const esp_err_t reset_error = update_register(
+        s_io_expander, IoExpanderPort0Register,
+        IoExpanderSpeakerReset, false);
+    return reset_error;
+}
 
 /* Releases the waiting presenter when the asynchronous LCD DMA transfer ends. */
 static bool transfer_complete(esp_lcd_panel_io_handle_t panel_io,
@@ -55,6 +146,12 @@ esp_err_t initialize() noexcept
                  BSP_LCD_H_RES, BSP_LCD_V_RES, Width, Height);
         return ESP_ERR_INVALID_SIZE;
     }
+    esp_err_t error = esp_pm_lock_create(
+        ESP_PM_NO_LIGHT_SLEEP, 0, "display", &s_display_sleep_lock);
+    if (error != ESP_OK) return error;
+    error = esp_pm_lock_acquire(s_display_sleep_lock);
+    if (error != ESP_OK) return error;
+    s_display_sleep_lock_held = true;
 
     s_framebuffer = static_cast<uint16_t *>(heap_caps_malloc(
         PixelCount * sizeof(*s_framebuffer),
@@ -70,7 +167,7 @@ esp_err_t initialize() noexcept
     const bsp_display_config_t display_config = {
         .max_transfer_sz = PixelCount * sizeof(*s_framebuffer),
     };
-    esp_err_t error = bsp_display_new(
+    error = bsp_display_new(
         &display_config, &s_panel, &s_panel_io);
     if (error != ESP_OK) return error;
     const esp_lcd_panel_io_callbacks_t callbacks = {
@@ -86,7 +183,13 @@ esp_err_t initialize() noexcept
                  esp_err_to_name(error));
         return error;
     }
-    ESP_LOGI(TAG, "CoreS3 LCD and touch initialized");
+    if ((error = add_power_devices()) != ESP_OK ||
+        (error = set_backlight(NormalBrightness)) != ESP_OK) {
+        ESP_LOGE(TAG, "CoreS3 power initialization failed: %s",
+                 esp_err_to_name(error));
+        return error;
+    }
+    ESP_LOGI(TAG, "CoreS3 LCD, touch, and backlight power initialized");
     return ESP_OK;
 }
 
@@ -127,14 +230,23 @@ esp_err_t setDisplayPower(DisplayPower power) noexcept
     if (s_panel == nullptr) return ESP_ERR_INVALID_STATE;
     esp_err_t error;
     if (power != DisplayPower::Off) {
+        if (!s_display_sleep_lock_held) {
+            error = esp_pm_lock_acquire(s_display_sleep_lock);
+            if (error != ESP_OK) return error;
+            s_display_sleep_lock_held = true;
+        }
         error = esp_lcd_panel_disp_on_off(s_panel, true);
         if (error == ESP_OK)
-            error = bsp_display_brightness_set(
+            error = set_backlight(
                 power == DisplayPower::Normal
                     ? NormalBrightness : DimmedBrightness);
     } else {
-        error = bsp_display_brightness_set(0);
+        error = set_backlight(0);
         if (error == ESP_OK) error = esp_lcd_panel_disp_on_off(s_panel, false);
+        if (error == ESP_OK && s_display_sleep_lock_held) {
+            error = esp_pm_lock_release(s_display_sleep_lock);
+            if (error == ESP_OK) s_display_sleep_lock_held = false;
+        }
     }
     return error;
 }
@@ -177,9 +289,17 @@ std::optional<BatteryStatus> battery() noexcept
 /* Acquires the BSP codec speaker and enables its output path. */
 esp_err_t initializeSpeaker() noexcept
 {
-    if (s_speaker != nullptr) return ESP_OK;
-    s_speaker = bsp_audio_codec_speaker_init();
-    if (s_speaker == nullptr) return ESP_FAIL;
+    if (s_speaker_open) return ESP_OK;
+    const esp_err_t reset_error = set_speaker_hardware(true);
+    if (reset_error != ESP_OK) return reset_error;
+    if (s_speaker == nullptr) {
+        s_speaker = bsp_audio_codec_speaker_init();
+        if (s_speaker == nullptr) {
+            (void)set_speaker_hardware(false);
+            return ESP_FAIL;
+        }
+        (void)esp_codec_set_disable_when_closed(s_speaker, true);
+    }
     esp_codec_dev_sample_info_t format = {
         .bits_per_sample = 16,
         .channel = 1,
@@ -188,11 +308,29 @@ esp_err_t initializeSpeaker() noexcept
         .mclk_multiple = 0,
     };
     int error = esp_codec_dev_open(s_speaker, &format);
-    if (error != ESP_CODEC_DEV_OK) return error;
+    if (error != ESP_CODEC_DEV_OK) {
+        (void)set_speaker_hardware(false);
+        return error;
+    }
     error = esp_codec_dev_set_out_vol(s_speaker, 38);
-    if (error != ESP_CODEC_DEV_OK) return error;
+    if (error != ESP_CODEC_DEV_OK) {
+        (void)esp_codec_dev_close(s_speaker);
+        (void)set_speaker_hardware(false);
+        return error;
+    }
+    s_speaker_open = true;
     ESP_LOGI(TAG, "CoreS3 speaker initialized");
     return ESP_OK;
+}
+
+esp_err_t shutdownSpeaker() noexcept
+{
+    if (s_speaker == nullptr || !s_speaker_open) return ESP_OK;
+    const int close_error = esp_codec_dev_close(s_speaker);
+    s_speaker_open = false;
+    const esp_err_t error = set_speaker_hardware(false);
+    if (close_error != ESP_CODEC_DEV_OK) return close_error;
+    return error;
 }
 
 /* Synthesizes one square-wave tone and writes it to the speaker codec. */
@@ -372,18 +510,24 @@ esp_err_t initializeImu() noexcept
     error = bmi270_create(&driver, &s_imu);
     if (error != ESP_OK) return error;
     const bmi270_config_t measurement = {
-        .acce_odr = BMI270_ACC_ODR_50_HZ,
+        .acce_odr = BMI270_ACC_ODR_12_5_HZ,
         .acce_range = BMI270_ACC_RANGE_4_G,
-        .gyro_odr = BMI270_GYR_ODR_50_HZ,
+        .gyro_odr = BMI270_GYR_ODR_25_HZ,
         .gyro_range = BMI270_GYR_RANGE_500_DPS,
     };
     error = bmi270_start(s_imu, &measurement);
+    if (error == ESP_OK) {
+        /* Gesture detection only consumes acceleration; leave gyro and
+           temperature blocks off after the driver configures the sensor. */
+        error = write_register(s_imu->i2c_handle, ImuPowerControlRegister,
+                               ImuAccelerometerEnable);
+    }
     if (error != ESP_OK) {
         bmi270_delete(s_imu);
         s_imu = nullptr;
         return error;
     }
-    ESP_LOGI(TAG, "BMI270 IMU initialized at address 0x69");
+    ESP_LOGI(TAG, "BMI270 accelerometer initialized at 12.5 Hz");
     return ESP_OK;
 }
 

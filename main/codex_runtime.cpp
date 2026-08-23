@@ -148,6 +148,7 @@ bool CodexRuntime::processCompleteRequest() noexcept
     bool changed = false;
     platform::Sound cue = platform::Sound::Complete;
     unsigned cuePriority = 0;
+    bool attentionRaised = false;
     for (std::size_t index = 0; index < result.eventCount; ++index) {
         const codex::Event &event = result.events[index];
         const auto *status = std::get_if<codex::SlotStatusChanged>(&event);
@@ -165,6 +166,7 @@ bool CodexRuntime::processCompleteRequest() noexcept
             case codex::SlotStatus::RequiresInput:
                 priority = 3;
                 candidate = platform::Sound::Attention;
+                attentionRaised = true;
                 break;
             case codex::SlotStatus::Error:
                 priority = 2;
@@ -181,6 +183,11 @@ bool CodexRuntime::processCompleteRequest() noexcept
             cuePriority = priority;
             cue = candidate;
         }
+    }
+    if (attentionRaised) {
+        const std::uint32_t now = uptimeMs();
+        displayPowerPolicy_.recordAttention(now);
+        wakeDisplay(now);
     }
     if (cuePriority > 0) playSound(cue);
     const esp_err_t error = codex::transport::sendJson(result.responseView());
@@ -259,7 +266,7 @@ bool CodexRuntime::processTouch() noexcept
 
 bool CodexRuntime::animationDue() noexcept
 {
-    if (displayPower_ == platform::DisplayPower::Off ||
+    if (displayPower_ != platform::DisplayPower::Normal ||
         model_.page != codex::Page::Agents ||
         codex::overlay(model_) != codex::Overlay::None) return false;
     const bool breathing = std::ranges::any_of(model_.slots, [](const auto &slot) {
@@ -304,7 +311,9 @@ void CodexRuntime::run() noexcept
     for (;;) {
         Event event;
         bool redraw = false;
-        if (queue_.receive(event, pdMS_TO_TICKS(8))) {
+        const TickType_t wait = displayPower_ == platform::DisplayPower::Off
+            ? pdMS_TO_TICKS(250) : pdMS_TO_TICKS(25);
+        if (queue_.receive(event, wait)) {
             if (event.type == EventType::Connection)
                 redraw |= applyConnection(event.connected);
             else

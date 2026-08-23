@@ -199,6 +199,7 @@ bool ClaudeRuntime::processLine() noexcept
         playSound(platform::Sound::Error);
     } else if ((!promptWasActive && model_.promptActive) ||
                (waitingBefore == 0 && model_.waitingSessions > 0)) {
+        displayPowerPolicy_.recordAttention(context.nowMs);
         wakeDisplay(context.nowMs);
         playSound(platform::Sound::Attention);
     } else if (runningBefore > 0 && model_.runningSessions == 0 &&
@@ -354,7 +355,9 @@ void ClaudeRuntime::run() noexcept
     for (;;) {
         Event event;
         bool redraw = false;
-        if (queue_.receive(event, pdMS_TO_TICKS(12))) {
+        const TickType_t wait = displayPower_ == platform::DisplayPower::Off
+            ? pdMS_TO_TICKS(MotionPollMs) : pdMS_TO_TICKS(25);
+        if (queue_.receive(event, wait)) {
             switch (event.type) {
                 case EventType::Connection:
                     claude::setConnection(
@@ -403,8 +406,10 @@ void ClaudeRuntime::run() noexcept
                 redraw |= wasOff && desired != platform::DisplayPower::Off;
             }
         }
-        if (displayPower_ != platform::DisplayPower::Off &&
-            now - lastAnimationMs_ >= AnimationPeriodMs) {
+        const std::uint32_t refreshPeriod = model_.page == claude::Page::Clock
+            ? ClockRefreshPeriodMs : PetAnimationPeriodMs;
+        if (displayPower_ == platform::DisplayPower::Normal &&
+            now - lastAnimationMs_ >= refreshPeriod) {
             lastAnimationMs_ = now;
             redraw |= model_.page == claude::Page::Pet ||
                       model_.page == claude::Page::Clock;
