@@ -48,7 +48,7 @@ private:
     [[nodiscard]] bool updateDisplayPower(std::uint32_t nowMs) noexcept;
 
     static constexpr std::size_t QueueCapacity = 12;
-    static constexpr std::uint32_t AnimationPeriodMs = 80;
+    static constexpr std::uint32_t AnimationPeriodMs = 120;
 
     codex::Model model_{};
     codex::Decoder decoder_{};

@@ -52,8 +52,9 @@ private:
 
     static constexpr std::size_t QueueCapacity = 12;
     static constexpr std::uint32_t SnapshotTimeoutMs = 30'000;
-    static constexpr std::uint32_t MotionPollMs = 40;
-    static constexpr std::uint32_t AnimationPeriodMs = 120;
+    static constexpr std::uint32_t MotionPollMs = 80;
+    static constexpr std::uint32_t PetAnimationPeriodMs = 160;
+    static constexpr std::uint32_t ClockRefreshPeriodMs = 1000;
 
     claude::Model model_{};
     claude::Decoder decoder_{};
