@@ -34,7 +34,7 @@ static unsigned s_advertising_ready;
 
 static esp_hid_raw_report_map_t s_report_maps[] = {{
     .data = buddy::codex::HidReportMap.data(),
-    .len = 29,
+    .len = static_cast<std::uint16_t>(buddy::codex::HidReportMap.size()),
 }};
 
 static esp_hid_device_config_t s_hid_config = {
@@ -155,8 +155,10 @@ static esp_err_t configure_gap(void)
     };
     esp_ble_adv_data_t advertising{};
     advertising.include_txpower = true;
-    advertising.min_interval = 0x0006;
-    advertising.max_interval = 0x0012;
+    /* Prefer 30-50 ms connections so an idle paired device does not wake the
+       radio at the former 7.5 ms rate. The host may still negotiate faster. */
+    advertising.min_interval = 0x0018;
+    advertising.max_interval = 0x0028;
     advertising.appearance = ESP_HID_APPEARANCE_GENERIC;
     advertising.service_uuid_len = sizeof(hid_service_uuid);
     advertising.p_service_uuid = hid_service_uuid;
@@ -197,8 +199,6 @@ esp_err_t initialize(Listener &listener) noexcept
 {
     if (s_hid_device != nullptr) return ESP_ERR_INVALID_STATE;
     s_listener = &listener;
-    s_report_maps[0].len =
-        static_cast<std::uint16_t>(buddy::codex::HidReportMap.size());
 
     esp_err_t error = esp_bt_controller_mem_release(ESP_BT_MODE_CLASSIC_BT);
     if (error != ESP_OK && error != ESP_ERR_INVALID_STATE) return error;

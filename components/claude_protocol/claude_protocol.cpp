@@ -3,7 +3,6 @@
 #include <algorithm>
 #include <array>
 #include <cstdio>
-#include <cstdlib>
 #include <cstring>
 
 #include "fixed_json.hpp"
@@ -17,44 +16,14 @@ using fixed_json::Token;
 using fixed_json::TokenType;
 using fixed_json::objectValue;
 using fixed_json::tokenEquals;
+using fixed_json::tokenI64;
 using fixed_json::tokenize;
+using fixed_json::tokenStringCopy;
+using fixed_json::tokenU64;
 
 /* Claude messages are processed on the single application task. Keeping the
    fixed token table here avoids consuming half of that task's stack. */
 Parser parserStorage;
-
-/* Parses an unsigned integer token with full-token and overflow validation. */
-bool tokenU64(std::string_view json, const Token &token, std::uint64_t &value) noexcept
-{
-    if (token.type != TokenType::Primitive) return false;
-    const auto length = static_cast<std::size_t>(token.end - token.start);
-    if (length == 0 || length >= 32 || json[static_cast<std::size_t>(token.start)] == '-')
-        return false;
-    std::array<char, 32> buffer{};
-    json.copy(buffer.data(), length, static_cast<std::size_t>(token.start));
-    buffer[length] = '\0';
-    char *end = nullptr;
-    const unsigned long long parsed = std::strtoull(buffer.data(), &end, 10);
-    if (end != buffer.data() + length) return false;
-    value = static_cast<std::uint64_t>(parsed);
-    return true;
-}
-
-/* Parses a signed integer token with full-token and range validation. */
-bool tokenI64(std::string_view json, const Token &token, std::int64_t &value) noexcept
-{
-    if (token.type != TokenType::Primitive) return false;
-    const auto length = static_cast<std::size_t>(token.end - token.start);
-    if (length == 0 || length >= 32) return false;
-    std::array<char, 32> buffer{};
-    json.copy(buffer.data(), length, static_cast<std::size_t>(token.start));
-    buffer[length] = '\0';
-    char *end = nullptr;
-    const long long parsed = std::strtoll(buffer.data(), &end, 10);
-    if (end != buffer.data() + length) return false;
-    value = static_cast<std::int64_t>(parsed);
-    return true;
-}
 
 /* Finds an error flag at any depth in a turn event's raw SDK content. */
 bool hasErrorFlag(std::string_view json, const Parser &parser) noexcept
@@ -71,47 +40,6 @@ bool hasErrorFlag(std::string_view json, const Parser &parser) noexcept
             return true;
     }
     return false;
-}
-
-/* Appends U+FFFD's placeholder when an escaped Unicode sequence cannot be represented. */
-void appendUtf8Replacement(std::span<char> destination, std::size_t &written) noexcept
-{
-    if (written + 1 < destination.size()) destination[written++] = '?';
-}
-
-/* Copies and minimally unescapes a JSON string into a bounded model buffer. */
-void copyString(std::string_view json, const Token &token, std::span<char> destination) noexcept
-{
-    if (destination.empty()) return;
-    destination[0] = '\0';
-    if (token.type != TokenType::String) return;
-    std::size_t written = 0;
-    for (int position = token.start; position < token.end &&
-         written + 1 < destination.size(); ++position) {
-        char byte = json[static_cast<std::size_t>(position)];
-        if (byte != '\\') {
-            destination[written++] = byte;
-            continue;
-        }
-        if (++position >= token.end) break;
-        switch (json[static_cast<std::size_t>(position)]) {
-            case '"': byte = '"'; break;
-            case '\\': byte = '\\'; break;
-            case '/': byte = '/'; break;
-            case 'b': byte = '\b'; break;
-            case 'f': byte = '\f'; break;
-            case 'n': byte = ' '; break;
-            case 'r': byte = ' '; break;
-            case 't': byte = ' '; break;
-            case 'u':
-                position += 4;
-                appendUtf8Replacement(destination, written);
-                continue;
-            default: continue;
-        }
-        destination[written++] = byte;
-    }
-    destination[written] = '\0';
 }
 
 /* Reads an optional named unsigned field and narrows it safely to uint32_t. */
@@ -181,7 +109,7 @@ bool handleSnapshot(std::string_view json, const Parser &parser, Model &model,
 
     const int message = objectValue(json, parser, 0, "msg");
     if (message >= 0)
-        copyString(json, parser.tokens[static_cast<std::size_t>(message)], model.message);
+        tokenStringCopy(json, parser.tokens[static_cast<std::size_t>(message)], model.message);
 
     model.entries.fill({});
     const int entries = objectValue(json, parser, 0, "entries");
@@ -192,7 +120,7 @@ bool handleSnapshot(std::string_view json, const Parser &parser, Model &model,
              index < parser.count && entryIndex < ModelEntryCount; ++index) {
             if (parser.tokens[index].parent == entries &&
                 parser.tokens[index].type == TokenType::String) {
-                copyString(json, parser.tokens[index], model.entries[entryIndex]);
+                tokenStringCopy(json, parser.tokens[index], model.entries[entryIndex]);
                 ++entryIndex;
             }
         }
@@ -215,13 +143,13 @@ bool handleSnapshot(std::string_view json, const Parser &parser, Model &model,
         const int tool = objectValue(json, parser, prompt, "tool");
         const int hint = objectValue(json, parser, prompt, "hint");
         if (id >= 0 && parser.tokens[static_cast<std::size_t>(id)].type == TokenType::String) {
-            copyString(json, parser.tokens[static_cast<std::size_t>(id)], model.promptId);
+            tokenStringCopy(json, parser.tokens[static_cast<std::size_t>(id)], model.promptId);
             model.promptActive = model.promptId[0] != '\0';
         }
         if (tool >= 0)
-            copyString(json, parser.tokens[static_cast<std::size_t>(tool)], model.promptTool);
+            tokenStringCopy(json, parser.tokens[static_cast<std::size_t>(tool)], model.promptTool);
         if (hint >= 0)
-            copyString(json, parser.tokens[static_cast<std::size_t>(hint)], model.promptHint);
+            tokenStringCopy(json, parser.tokens[static_cast<std::size_t>(hint)], model.promptHint);
     }
     if (previousRunning > 0 && running == 0 && waiting == 0 && !model.promptActive) {
         model.transientState = PetState::Celebrate;
@@ -284,7 +212,7 @@ bool commandResponse(std::string_view json, const Parser &parser, int command,
         const bool owner = tokenEquals(json, commandToken, "owner");
         const int value = objectValue(json, parser, 0, "name");
         if (value >= 0) {
-            copyString(json, parser.tokens[static_cast<std::size_t>(value)],
+            tokenStringCopy(json, parser.tokens[static_cast<std::size_t>(value)],
                       owner ? std::span<char>{model.owner} : std::span<char>{model.deviceName});
             action.modelChanged = true;
             action.persistModel = true;
@@ -301,7 +229,7 @@ bool commandResponse(std::string_view json, const Parser &parser, int command,
     }
 
     std::array<char, 32> commandName{};
-    copyString(json, commandToken, commandName);
+    tokenStringCopy(json, commandToken, commandName);
     return setResponse(action, std::snprintf(action.response.data(), action.response.size(),
         "{\"ack\":\"%s\",\"ok\":false,\"error\":\"unsupported\"}", commandName.data()));
 }

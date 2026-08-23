@@ -67,6 +67,9 @@ struct BatteryStatus {
 /* Initializes speaker hardware; failure is nonfatal to either runtime. */
 [[nodiscard]] esp_err_t initializeSpeaker() noexcept;
 
+/* Closes the audio path and holds the speaker amplifier in reset. */
+[[nodiscard]] esp_err_t shutdownSpeaker() noexcept;
+
 /* Plays the fixed tone sequence associated with a semantic UI sound. */
 [[nodiscard]] esp_err_t playSound(Sound sound) noexcept;
 

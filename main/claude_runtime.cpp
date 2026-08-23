@@ -199,6 +199,7 @@ bool ClaudeRuntime::processLine() noexcept
         playSound(platform::Sound::Error);
     } else if ((!promptWasActive && model_.promptActive) ||
                (waitingBefore == 0 && model_.waitingSessions > 0)) {
+        displayPowerPolicy_.recordAttention(context.nowMs);
         wakeDisplay(context.nowMs);
         playSound(platform::Sound::Attention);
     } else if (runningBefore > 0 && model_.runningSessions == 0 &&
@@ -313,7 +314,10 @@ void ClaudeRuntime::run() noexcept
 {
     ESP_LOGI(Tag, "Claude Owl Buddy starting on M5Stack CoreS3");
     claude::init(model_);
-    ESP_ERROR_CHECK(claude::storage::load(model_));
+    const esp_err_t storageLoadError = claude::storage::load(model_);
+    if (storageLoadError != ESP_OK)
+        ESP_LOGW(Tag, "Claude stats could not be loaded: %s",
+                 esp_err_to_name(storageLoadError));
     const audio::Initialization audioInitialization = audio_.initialize();
     if (audioInitialization.settingsError != ESP_OK)
         ESP_LOGW(Tag, "Mute setting could not be loaded: %s",
@@ -354,7 +358,9 @@ void ClaudeRuntime::run() noexcept
     for (;;) {
         Event event;
         bool redraw = false;
-        if (queue_.receive(event, pdMS_TO_TICKS(12))) {
+        const TickType_t wait = displayPower_ == platform::DisplayPower::Off
+            ? pdMS_TO_TICKS(MotionPollMs) : pdMS_TO_TICKS(25);
+        if (queue_.receive(event, wait)) {
             switch (event.type) {
                 case EventType::Connection:
                     claude::setConnection(
@@ -403,8 +409,10 @@ void ClaudeRuntime::run() noexcept
                 redraw |= wasOff && desired != platform::DisplayPower::Off;
             }
         }
-        if (displayPower_ != platform::DisplayPower::Off &&
-            now - lastAnimationMs_ >= AnimationPeriodMs) {
+        const std::uint32_t refreshPeriod = model_.page == claude::Page::Clock
+            ? ClockRefreshPeriodMs : PetAnimationPeriodMs;
+        if (displayPower_ == platform::DisplayPower::Normal &&
+            now - lastAnimationMs_ >= refreshPeriod) {
             lastAnimationMs_ = now;
             redraw |= model_.page == claude::Page::Pet ||
                       model_.page == claude::Page::Clock;
