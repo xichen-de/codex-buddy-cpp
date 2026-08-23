@@ -312,7 +312,7 @@ void CodexRuntime::run() noexcept
         Event event;
         bool redraw = false;
         const TickType_t wait = displayPower_ == platform::DisplayPower::Off
-            ? pdMS_TO_TICKS(250) : pdMS_TO_TICKS(25);
+            ? pdMS_TO_TICKS(IdlePollMs) : pdMS_TO_TICKS(ActivePollMs);
         if (queue_.receive(event, wait)) {
             if (event.type == EventType::Connection)
                 redraw |= applyConnection(event.connected);

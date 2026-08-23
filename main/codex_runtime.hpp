@@ -49,6 +49,8 @@ private:
 
     static constexpr std::size_t QueueCapacity = 12;
     static constexpr std::uint32_t AnimationPeriodMs = 120;
+    static constexpr std::uint32_t IdlePollMs = 250;
+    static constexpr std::uint32_t ActivePollMs = 25;
 
     codex::Model model_{};
     codex::Decoder decoder_{};

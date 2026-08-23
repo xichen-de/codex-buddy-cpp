@@ -2,8 +2,11 @@
 
 #include <array>
 #include <cctype>
+#include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <cstdlib>
+#include <span>
 #include <string_view>
 
 namespace buddy::fixed_json {
@@ -147,6 +150,100 @@ inline bool tokenEquals(std::string_view json, const Token &token,
     const auto length = static_cast<std::size_t>(token.end - token.start);
     return token.type == TokenType::String && text.size() == length &&
            json.substr(static_cast<std::size_t>(token.start), length) == text;
+}
+
+/* Copies a Primitive token's raw text into a bounded stack buffer, ready for
+   strtoX-style parsing. Shared by the unsigned/signed/floating-point token
+   parsers below. */
+template <std::size_t BufferSize>
+bool copyPrimitiveToken(std::string_view json, const Token &token,
+                        std::array<char, BufferSize> &buffer,
+                        std::size_t &length) noexcept
+{
+    if (token.type != TokenType::Primitive) return false;
+    length = static_cast<std::size_t>(token.end - token.start);
+    if (length == 0 || length >= BufferSize) return false;
+    json.copy(buffer.data(), length, static_cast<std::size_t>(token.start));
+    buffer[length] = '\0';
+    return true;
+}
+
+/* Parses an unsigned integer token with full-token and overflow validation. */
+inline bool tokenU64(std::string_view json, const Token &token,
+                     std::uint64_t &value) noexcept
+{
+    std::array<char, 32> buffer{};
+    std::size_t length = 0;
+    if (!copyPrimitiveToken(json, token, buffer, length) || buffer[0] == '-')
+        return false;
+    char *end = nullptr;
+    const unsigned long long parsed = std::strtoull(buffer.data(), &end, 10);
+    if (end != buffer.data() + length) return false;
+    value = static_cast<std::uint64_t>(parsed);
+    return true;
+}
+
+/* Parses a signed integer token with full-token validation. */
+inline bool tokenI64(std::string_view json, const Token &token,
+                     std::int64_t &value) noexcept
+{
+    std::array<char, 32> buffer{};
+    std::size_t length = 0;
+    if (!copyPrimitiveToken(json, token, buffer, length)) return false;
+    char *end = nullptr;
+    const long long parsed = std::strtoll(buffer.data(), &end, 10);
+    if (end != buffer.data() + length) return false;
+    value = static_cast<std::int64_t>(parsed);
+    return true;
+}
+
+/* Parses a finite floating-point token with full-token validation. */
+inline bool tokenNumber(std::string_view json, const Token &token,
+                        double &value) noexcept
+{
+    std::array<char, 40> buffer{};
+    std::size_t length = 0;
+    if (!copyPrimitiveToken(json, token, buffer, length)) return false;
+    char *end = nullptr;
+    value = std::strtod(buffer.data(), &end);
+    return end == buffer.data() + length && std::isfinite(value);
+}
+
+/* Copies and minimally unescapes a JSON string token into a bounded buffer,
+   replacing unsupported \u escapes with '?'. */
+inline void tokenStringCopy(std::string_view json, const Token &token,
+                            std::span<char> destination) noexcept
+{
+    if (destination.empty()) return;
+    destination[0] = '\0';
+    if (token.type != TokenType::String) return;
+    std::size_t written = 0;
+    for (int position = token.start; position < token.end &&
+         written + 1 < destination.size(); ++position) {
+        char byte = json[static_cast<std::size_t>(position)];
+        if (byte != '\\') {
+            destination[written++] = byte;
+            continue;
+        }
+        if (++position >= token.end) break;
+        switch (json[static_cast<std::size_t>(position)]) {
+            case '"': byte = '"'; break;
+            case '\\': byte = '\\'; break;
+            case '/': byte = '/'; break;
+            case 'b': byte = '\b'; break;
+            case 'f': byte = '\f'; break;
+            case 'n': byte = ' '; break;
+            case 'r': byte = ' '; break;
+            case 't': byte = ' '; break;
+            case 'u':
+                position += 4;
+                if (written + 1 < destination.size()) destination[written++] = '?';
+                continue;
+            default: continue;
+        }
+        destination[written++] = byte;
+    }
+    destination[written] = '\0';
 }
 
 template <std::size_t Capacity>

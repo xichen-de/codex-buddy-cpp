@@ -33,16 +33,22 @@ bool inMenuTab(std::uint16_t x, std::uint16_t y) noexcept
     return inRect(x, y, 240, TabTop, 80, ScreenHeight - TabTop);
 }
 
-/* Maps one cell in a regular button grid to the requested action type. */
+/* Maps one cell in the shared Codex button grid to the requested action type. */
 Action gridAction(std::uint16_t x, std::uint16_t y, ActionType type) noexcept
 {
-    if (x < 5 || y < 38) return noAction();
-    const unsigned column = (x - 5U) / 105U;
-    const unsigned row = (y - 38U) / 84U;
-    if (column >= 3 || row >= 2 ||
-        !inRect(x, y, 5U + column * 105U, 38U + row * 84U, 100, 76))
+    using layout::codex_grid::ColumnStride;
+    using layout::codex_grid::Columns;
+    using layout::codex_grid::OriginX;
+    using layout::codex_grid::OriginY;
+    using layout::codex_grid::Rows;
+    using layout::codex_grid::RowStride;
+    if (x < OriginX || y < OriginY) return noAction();
+    const unsigned column = (x - OriginX) / ColumnStride;
+    const unsigned row = (y - OriginY) / RowStride;
+    if (column >= Columns || row >= Rows ||
+        !layout::contains(layout::codex_grid::cell(row * Columns + column), x, y))
         return noAction();
-    const unsigned index = row * 3U + column;
+    const unsigned index = row * Columns + column;
     Action action{.type = type};
     if (type == ActionType::Slot) {
         action.slot = static_cast<std::uint8_t>(index);

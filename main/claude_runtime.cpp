@@ -314,7 +314,10 @@ void ClaudeRuntime::run() noexcept
 {
     ESP_LOGI(Tag, "Claude Owl Buddy starting on M5Stack CoreS3");
     claude::init(model_);
-    ESP_ERROR_CHECK(claude::storage::load(model_));
+    const esp_err_t storageLoadError = claude::storage::load(model_);
+    if (storageLoadError != ESP_OK)
+        ESP_LOGW(Tag, "Claude stats could not be loaded: %s",
+                 esp_err_to_name(storageLoadError));
     const audio::Initialization audioInitialization = audio_.initialize();
     if (audioInitialization.settingsError != ESP_OK)
         ESP_LOGW(Tag, "Mute setting could not be loaded: %s",
