@@ -1,6 +1,5 @@
 #include "buddy_ui.hpp"
 
-#include <cctype>
 #include <cstddef>
 #include <cstdio>
 #include <cstring>
@@ -9,6 +8,8 @@
 
 #ifdef BUDDY_USE_LVGL_FONT
 #include "ui_font.hpp"
+#else
+#include "buddy_glyph_font.hpp"
 #endif
 
 namespace buddy::display {
@@ -120,53 +121,6 @@ static void card(Canvas *canvas, int x, int y, int width, int height,
     rounded(canvas, x + 18, y + 1, width - 36, 4, 2, accent);
 }
 
-#ifndef BUDDY_USE_LVGL_FONT
-/* Returns the five-column bitmap for a supported character or fallback glyph. */
-static const uint8_t *glyph(char value)
-{
-    static const uint8_t blank[5] = {0};
-    static const uint8_t digits[10][5] = {
-        {0x3e,0x51,0x49,0x45,0x3e},{0x00,0x42,0x7f,0x40,0x00},
-        {0x42,0x61,0x51,0x49,0x46},{0x21,0x41,0x45,0x4b,0x31},
-        {0x18,0x14,0x12,0x7f,0x10},{0x27,0x45,0x45,0x45,0x39},
-        {0x3c,0x4a,0x49,0x49,0x30},{0x01,0x71,0x09,0x05,0x03},
-        {0x36,0x49,0x49,0x49,0x36},{0x06,0x49,0x49,0x29,0x1e},
-    };
-    static const uint8_t letters[26][5] = {
-        {0x7e,0x11,0x11,0x11,0x7e},{0x7f,0x49,0x49,0x49,0x36},
-        {0x3e,0x41,0x41,0x41,0x22},{0x7f,0x41,0x41,0x22,0x1c},
-        {0x7f,0x49,0x49,0x49,0x41},{0x7f,0x09,0x09,0x09,0x01},
-        {0x3e,0x41,0x49,0x49,0x7a},{0x7f,0x08,0x08,0x08,0x7f},
-        {0x00,0x41,0x7f,0x41,0x00},{0x20,0x40,0x41,0x3f,0x01},
-        {0x7f,0x08,0x14,0x22,0x41},{0x7f,0x40,0x40,0x40,0x40},
-        {0x7f,0x02,0x0c,0x02,0x7f},{0x7f,0x04,0x08,0x10,0x7f},
-        {0x3e,0x41,0x41,0x41,0x3e},{0x7f,0x09,0x09,0x09,0x06},
-        {0x3e,0x41,0x51,0x21,0x5e},{0x7f,0x09,0x19,0x29,0x46},
-        {0x46,0x49,0x49,0x49,0x31},{0x01,0x01,0x7f,0x01,0x01},
-        {0x3f,0x40,0x40,0x40,0x3f},{0x1f,0x20,0x40,0x20,0x1f},
-        {0x3f,0x40,0x38,0x40,0x3f},{0x63,0x14,0x08,0x14,0x63},
-        {0x07,0x08,0x70,0x08,0x07},{0x61,0x51,0x49,0x45,0x43},
-    };
-    static const uint8_t dash[5] = {0x08,0x08,0x08,0x08,0x08};
-    static const uint8_t slash[5] = {0x20,0x10,0x08,0x04,0x02};
-    static const uint8_t colon[5] = {0x00,0x36,0x36,0x00,0x00};
-    static const uint8_t percent[5] = {0x63,0x13,0x08,0x64,0x63};
-    static const uint8_t dot[5] = {0x00,0x60,0x60,0x00,0x00};
-    static const uint8_t exclamation[5] = {0x00,0x00,0x5f,0x00,0x00};
-    if (value >= '0' && value <= '9') return digits[value - '0'];
-    value = static_cast<char>(
-        toupper(static_cast<unsigned char>(value)));
-    if (value >= 'A' && value <= 'Z') return letters[value - 'A'];
-    if (value == '-') return dash;
-    if (value == '/') return slash;
-    if (value == ':') return colon;
-    if (value == '%') return percent;
-    if (value == '.') return dot;
-    if (value == '!') return exclamation;
-    return blank;
-}
-#endif
-
 /* Calculates pixel width for fixed 5x7 glyphs plus spacing. */
 static int text_width(const char *text, int scale)
 {
@@ -188,7 +142,7 @@ static void text(Canvas *canvas, const char *value, int x, int y, int scale,
                       x, y, scale, color);
 #else
     for (; *value != '\0'; ++value, x += 6 * scale) {
-        const uint8_t *columns = glyph(*value);
+        const uint8_t *columns = layout::glyphBitmap(*value);
         for (int column = 0; column < 5; ++column)
             for (int row = 0; row < 7; ++row)
                 if ((columns[column] & (1U << row)) != 0)
@@ -531,9 +485,12 @@ static void draw_approval(Canvas *canvas, const buddy::claude::Model *model)
     centered(canvas, model->promptTool[0] ? model->promptTool.data() : "TOOL",
              160, 70, 2, Text);
     clipped_text(canvas, model->promptHint.data(), 14, 102, 48, Muted);
-    box(canvas, 12, 143, 143, 55, Green, Panel);
+    const layout::Rect approve = layout::claude_approval::Approve;
+    const layout::Rect deny = layout::claude_approval::Deny;
+    box(canvas, approve.x, approve.y, approve.width, approve.height, Green,
+        Panel);
     centered(canvas, "APPROVE", 83, 160, 2, Text);
-    box(canvas, 165, 143, 143, 55, Red, Panel);
+    box(canvas, deny.x, deny.y, deny.width, deny.height, Red, Panel);
     centered(canvas, "DENY", 236, 160, 2, Text);
 }
 
@@ -575,8 +532,10 @@ ClaudeAction claudeHit(const claude::Model &model, std::uint16_t x,
                        std::uint16_t y) noexcept
 {
     if (model.promptActive) {
-        if (in_rect(x, y, 12, 143, 143, 55)) return ClaudeAction::Approve;
-        if (in_rect(x, y, 165, 143, 143, 55)) return ClaudeAction::Deny;
+        if (layout::contains(layout::claude_approval::Approve, x, y))
+            return ClaudeAction::Approve;
+        if (layout::contains(layout::claude_approval::Deny, x, y))
+            return ClaudeAction::Deny;
         return ClaudeAction::None;
     }
     if (y >= TabTop) {

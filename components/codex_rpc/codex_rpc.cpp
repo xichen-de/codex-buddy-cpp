@@ -2,7 +2,6 @@
 
 #include <cmath>
 #include <cstdio>
-#include <cstdlib>
 #include <cstring>
 #include <span>
 
@@ -18,30 +17,32 @@ using fixed_json::TokenType;
 using fixed_json::objectValue;
 using fixed_json::tokenEquals;
 using fixed_json::tokenize;
+using fixed_json::tokenNumber;
+using fixed_json::tokenStringCopy;
 
-/* Copies and parses a numeric token as a bounded double value. */
-bool tokenNumber(std::string_view json, const Token &token, double &value) noexcept
+/* Merges the shared color/brightness/effect/effectSpeed fields present on both
+   Slot and Light from a partial desktop object into an existing light value. */
+template <typename LightLike>
+void applyLightFields(std::string_view json, const Parser &parser, int object,
+                      LightLike &light) noexcept
 {
-    if (token.type != TokenType::Primitive) return false;
-    const auto length = static_cast<std::size_t>(token.end - token.start);
-    if (length == 0 || length >= 40) return false;
-    std::array<char, 40> buffer{};
-    json.copy(buffer.data(), length, static_cast<std::size_t>(token.start));
-    buffer[length] = '\0';
-    char *end = nullptr;
-    value = std::strtod(buffer.data(), &end);
-    return end == buffer.data() + length && std::isfinite(value);
-}
-
-/* Copies a string token into a bounded C buffer for model storage. */
-void tokenStringCopy(std::string_view json, const Token &token,
-                     std::span<char> destination) noexcept
-{
-    if (token.type != TokenType::String || destination.empty()) return;
-    std::size_t length = static_cast<std::size_t>(token.end - token.start);
-    if (length >= destination.size()) length = destination.size() - 1;
-    json.copy(destination.data(), length, static_cast<std::size_t>(token.start));
-    destination[length] = '\0';
+    double number;
+    int token = objectValue(json, parser, object, "c");
+    if (token >= 0 && tokenNumber(json, parser.tokens[static_cast<std::size_t>(token)], number) &&
+        number >= 0 && number <= 16777215 && std::floor(number) == number)
+        light.color = static_cast<std::uint32_t>(number);
+    token = objectValue(json, parser, object, "b");
+    if (token >= 0 && tokenNumber(json, parser.tokens[static_cast<std::size_t>(token)], number)) {
+        light.brightness = static_cast<float>(number);
+        if (light.brightness < 0) light.brightness = 0;
+        if (light.brightness > 1) light.brightness = 1;
+    }
+    token = objectValue(json, parser, object, "e");
+    if (token >= 0)
+        tokenStringCopy(json, parser.tokens[static_cast<std::size_t>(token)], light.effect);
+    token = objectValue(json, parser, object, "s");
+    if (token >= 0 && tokenNumber(json, parser.tokens[static_cast<std::size_t>(token)], number))
+        light.effectSpeed = static_cast<float>(number);
 }
 
 /* Creates a neutral raw slot value before applying partial desktop fields. */
@@ -93,23 +94,7 @@ void updateSlot(std::string_view json, const Parser &parser, int object,
         result.eventCount >= MaxEvents) return;
     const auto index = static_cast<std::uint8_t>(id);
     Slot slot = context.model != nullptr ? context.model->slots[index] : defaultSlot();
-    double number;
-    int token = objectValue(json, parser, object, "c");
-    if (token >= 0 && tokenNumber(json, parser.tokens[static_cast<std::size_t>(token)], number) &&
-        number >= 0 && number <= 16777215 && std::floor(number) == number)
-        slot.color = static_cast<std::uint32_t>(number);
-    token = objectValue(json, parser, object, "b");
-    if (token >= 0 && tokenNumber(json, parser.tokens[static_cast<std::size_t>(token)], number)) {
-        slot.brightness = static_cast<float>(number);
-        if (slot.brightness < 0) slot.brightness = 0;
-        if (slot.brightness > 1) slot.brightness = 1;
-    }
-    token = objectValue(json, parser, object, "e");
-    if (token >= 0)
-        tokenStringCopy(json, parser.tokens[static_cast<std::size_t>(token)], slot.effect);
-    token = objectValue(json, parser, object, "s");
-    if (token >= 0 && tokenNumber(json, parser.tokens[static_cast<std::size_t>(token)], number))
-        slot.effectSpeed = static_cast<float>(number);
+    applyLightFields(json, parser, object, slot);
     slot.breathing = std::strcmp(slot.effect.data(), "breath") == 0;
     slot.status = classifySlot(slot);
     result.events[result.eventCount++] =
@@ -122,23 +107,7 @@ void updateLight(std::string_view json, const Parser &parser, int object,
 {
     if (object < 0 || parser.tokens[static_cast<std::size_t>(object)].type != TokenType::Object)
         return;
-    double number;
-    int token = objectValue(json, parser, object, "c");
-    if (token >= 0 && tokenNumber(json, parser.tokens[static_cast<std::size_t>(token)], number) &&
-        number >= 0 && number <= 16777215 && std::floor(number) == number)
-        light.color = static_cast<std::uint32_t>(number);
-    token = objectValue(json, parser, object, "b");
-    if (token >= 0 && tokenNumber(json, parser.tokens[static_cast<std::size_t>(token)], number)) {
-        light.brightness = static_cast<float>(number);
-        if (light.brightness < 0) light.brightness = 0;
-        if (light.brightness > 1) light.brightness = 1;
-    }
-    token = objectValue(json, parser, object, "e");
-    if (token >= 0)
-        tokenStringCopy(json, parser.tokens[static_cast<std::size_t>(token)], light.effect);
-    token = objectValue(json, parser, object, "s");
-    if (token >= 0 && tokenNumber(json, parser.tokens[static_cast<std::size_t>(token)], number))
-        light.effectSpeed = static_cast<float>(number);
+    applyLightFields(json, parser, object, light);
 }
 
 /* Converts a full lighting configuration RPC payload into model events. */

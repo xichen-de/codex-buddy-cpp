@@ -7,6 +7,8 @@
 
 #ifdef BUDDY_USE_LVGL_FONT
 #include "ui_font.hpp"
+#else
+#include "buddy_glyph_font.hpp"
 #endif
 
 namespace buddy::codex::ui {
@@ -94,43 +96,6 @@ static void rounded_box(Canvas *canvas, int x, int y, int width, int height,
                       radius - thickness, background);
 }
 
-#ifndef BUDDY_USE_LVGL_FONT
-/* Returns the five-column bitmap for a supported character or fallback glyph. */
-static const uint8_t *glyph(char value)
-{
-    static const uint8_t blank[5] = {0};
-    static const uint8_t digits[10][5] = {
-        {0x3e,0x51,0x49,0x45,0x3e},{0x00,0x42,0x7f,0x40,0x00},
-        {0x42,0x61,0x51,0x49,0x46},{0x21,0x41,0x45,0x4b,0x31},
-        {0x18,0x14,0x12,0x7f,0x10},{0x27,0x45,0x45,0x45,0x39},
-        {0x3c,0x4a,0x49,0x49,0x30},{0x01,0x71,0x09,0x05,0x03},
-        {0x36,0x49,0x49,0x49,0x36},{0x06,0x49,0x49,0x29,0x1e},
-    };
-    static const uint8_t letters[26][5] = {
-        {0x7e,0x11,0x11,0x11,0x7e},{0x7f,0x49,0x49,0x49,0x36},
-        {0x3e,0x41,0x41,0x41,0x22},{0x7f,0x41,0x41,0x22,0x1c},
-        {0x7f,0x49,0x49,0x49,0x41},{0x7f,0x09,0x09,0x09,0x01},
-        {0x3e,0x41,0x49,0x49,0x7a},{0x7f,0x08,0x08,0x08,0x7f},
-        {0x00,0x41,0x7f,0x41,0x00},{0x20,0x40,0x41,0x3f,0x01},
-        {0x7f,0x08,0x14,0x22,0x41},{0x7f,0x40,0x40,0x40,0x40},
-        {0x7f,0x02,0x0c,0x02,0x7f},{0x7f,0x04,0x08,0x10,0x7f},
-        {0x3e,0x41,0x41,0x41,0x3e},{0x7f,0x09,0x09,0x09,0x06},
-        {0x3e,0x41,0x51,0x21,0x5e},{0x7f,0x09,0x19,0x29,0x46},
-        {0x46,0x49,0x49,0x49,0x31},{0x01,0x01,0x7f,0x01,0x01},
-        {0x3f,0x40,0x40,0x40,0x3f},{0x1f,0x20,0x40,0x20,0x1f},
-        {0x3f,0x40,0x38,0x40,0x3f},{0x63,0x14,0x08,0x14,0x63},
-        {0x07,0x08,0x70,0x08,0x07},{0x61,0x51,0x49,0x45,0x43},
-    };
-    static const uint8_t dash[5] = {0x08,0x08,0x08,0x08,0x08};
-    static const uint8_t slash[5] = {0x20,0x10,0x08,0x04,0x02};
-    if (value >= '0' && value <= '9') return digits[value - '0'];
-    if (value >= 'A' && value <= 'Z') return letters[value - 'A'];
-    if (value == '-') return dash;
-    if (value == '/') return slash;
-    return blank;
-}
-#endif
-
 /* Calculates pixel width for fixed 5x7 glyphs plus one-column spacing. */
 static int text_width(const char *text, int scale)
 {
@@ -152,7 +117,7 @@ static void draw_text(Canvas *canvas, const char *text, int x, int y,
                       x, y, scale, color);
 #else
     for (; *text != '\0'; ++text, x += 6 * scale) {
-        const uint8_t *columns = glyph(*text);
+        const uint8_t *columns = layout::glyphBitmap(*text);
         for (int column = 0; column < 5; ++column)
             for (int row = 0; row < 7; ++row)
                 if ((columns[column] & (1U << row)) != 0)
@@ -364,9 +329,11 @@ static void draw_control(Canvas *canvas, const Model *model,
         return;
     }
     for (int index = 0; index < 6; ++index) {
-        const int x = 5 + (index % 3) * 105;
-        const int y = 38 + (index / 3) * 84;
-        button(canvas, x, y, 100, 76, labels[index], index == 4 ? "HOLD" : "TAP",
+        const layout::Rect cell = layout::codex_grid::cell(index);
+        const int x = cell.x;
+        const int y = cell.y;
+        button(canvas, x, y, cell.width, cell.height, labels[index],
+               index == 4 ? "HOLD" : "TAP",
                borders[index], backgrounds[index],
                action_matches(active, ActionType::Key,
                               buddy::codex::controlKey(index)),
@@ -379,8 +346,9 @@ static void draw_agents(Canvas *canvas, const Model *model,
                         const Action *active, uint32_t time_ms)
 {
     for (int index = 0; index < static_cast<int>(SlotCount); ++index) {
-        const int x = 5 + (index % 3) * 105;
-        const int y = 38 + (index / 3) * 84;
+        const layout::Rect cell = layout::codex_grid::cell(index);
+        const int x = cell.x;
+        const int y = cell.y;
         char label[10];
         char number[3];
         snprintf(label, sizeof(label), "AGENT %d", index + 1);
