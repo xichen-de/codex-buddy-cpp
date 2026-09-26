@@ -39,10 +39,9 @@ address derived from the device Bluetooth MAC.
 
 The modes also keep separate bonding data: Claude uses a dedicated Bluedroid
 configuration store named `claude_bt`, while Codex uses the default store. This
-is intended to let both desktop pairings survive mode switches without exposing
-both services at once. The design is implemented, but its macOS pairing and
-service-cache behavior remains a physical validation item in
-[HARDWARE_TEST.md](HARDWARE_TEST.md).
+lets both desktop pairings survive mode switches without exposing both services
+at once. Switching between modes without re-pairing or macOS service-cache
+confusion was confirmed on hardware; see [HARDWARE_TEST.md](HARDWARE_TEST.md).
 
 Claude requires LE Secure Connections with MITM protection. The CoreS3 shows a
 six-digit passkey, and its UART characteristics require an encrypted link.
@@ -51,8 +50,8 @@ needs a reviewed storage choice and may require a partition-layout change.
 
 ## Recommended reading order
 
-Do not begin by reading all 700+ lines of `main/main.cpp` from top to bottom.
-Choose one mode and follow its data path:
+`main/main.cpp` only selects a mode; the interesting logic lives in the
+runtime classes and components. Choose one mode and follow its data path:
 
 ### Codex path
 
@@ -159,18 +158,19 @@ sound, and persistence. Motion samples take a separate path through
 | `codex_rpc` | Supported desktop methods and model events | BLE and drawing |
 | `fixed_json` | Bounded JSON tokenization and object lookup | Protocol meaning, allocation |
 | `buddy_layout` | Shared control rectangles and point containment | Rendering style, actions |
-| `ui` | Codex pixel rendering | Hardware transfer and touch |
+| `codex_ui` | Codex pixel rendering | Hardware transfer and touch |
 | `codex_ble_transport` | Codex BLE HID lifecycle and reports | Application state |
 | `claude_model` | Claude UI/session/permission state | Parsing, I/O, drawing |
 | `claude_protocol` | Claude JSON framing and commands | BLE, NVS, RTC, sound |
 | `buddy_ui` | Selector/Claude rendering and hit testing | Hardware transfer |
+| `ui_font` | LVGL Montserrat glyph measurement and blending | LVGL display objects |
 | `claude_ble_transport` | Claude BLE service, security, bonding | Protocol meaning |
 | `claude_storage` | Persisted Claude identity and decision counters | Runtime policy |
 | `buddy_settings` | Shared persisted preferences | Sound policy and UI state |
 | `buddy_audio` | Mute state, persistence coordination, and guarded playback | Cue selection |
 | `motion_detector` | Motion filtering and gesture events | IMU hardware access |
 | `platform_core_s3` | LCD, touch, speaker, RTC, and IMU APIs | Mode-specific behavior |
-| `main` | Composition, owned runtime classes, queues, side effects | Reusable domain logic |
+| `main` | Composition, runtime classes, queues, display-power policy, side effects | Reusable domain logic |
 
 ## State and ownership rules
 
@@ -181,7 +181,13 @@ sound, and persistence. Motion samples take a separate path through
 - BLE callbacks copy data into fixed-size queue events. The copied buffers must
   remain large enough for the transport callback's maximum chunk/report.
 - Renderers always draw a complete 320 x 240 RGB565 frame into the shared PSRAM
-  framebuffer. `buddy::platform::present()` transfers it to the LCD.
+  framebuffer. `buddy::platform::present()` byte-swaps it in place for the
+  panel and transfers it to the LCD, so a frame must be fully redrawn before
+  it is presented again.
+- Display dimming and power-off timing live in
+  `main/display_power_policy.hpp`. Attention states (prompts, passkeys, waiting
+  sessions, Agents requiring input) hold normal brightness for up to one
+  minute.
 - Most pure components have no ESP-IDF dependency. This is intentional: they
   compile and run as strict C++20 host tests.
 
@@ -217,6 +223,8 @@ The files in `test/host/` show expected behavior without needing a CoreS3:
   messages and owl state transitions.
 - `test_codex_ui.cpp` and `test_buddy_ui.cpp` verify renderer behavior at selected pixels.
 - `test_motion_detector.cpp` documents gesture thresholds through examples.
+- `test_display_power_policy.cpp` shows the dim, off, and attention-hold
+  timeouts, including uptime wraparound.
 
 Run all host tests with `bash test/host/run.sh`. Build the actual ESP-IDF
 application with `pio run -e m5stack-cores3`; neither command flashes hardware.

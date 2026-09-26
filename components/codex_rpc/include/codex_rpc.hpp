@@ -14,7 +14,8 @@ namespace buddy::codex {
 
 inline constexpr const char *FirmwareVersion = "1.0.0-cores3";
 inline constexpr std::size_t MaxEvents = SlotCount;
-inline constexpr std::size_t ResponseSize = 512;
+/* Holds the longest sendable message plus its null terminator. */
+inline constexpr std::size_t ResponseSize = MaxMessageSize + 1;
 
 struct RequestContext {
     const Model *model{};

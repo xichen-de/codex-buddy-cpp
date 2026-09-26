@@ -52,6 +52,16 @@ static void test_selection_commands_and_mic(void)
     assert(overlay(model) == Overlay::Listening);
     assert(handleAction(model, action, ActionPhase::Cancel, &capture));
     assert(!model.micHeld);
+
+    /* A lost release report must not leave the Listening overlay stuck. */
+    assert(handleAction(model, action, ActionPhase::Press, &capture));
+    assert(model.micHeld);
+    capture.succeed = false;
+    assert(handleAction(model, action, ActionPhase::Release, &capture));
+    assert(!model.micHeld);
+    assert(overlay(model) == Overlay::None);
+    assert(!handleAction(model, action, ActionPhase::Press, &capture));
+    assert(!model.micHeld);
 }
 
 static void test_directions_rotation_and_failure(void)

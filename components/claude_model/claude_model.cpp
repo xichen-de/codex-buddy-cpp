@@ -118,7 +118,10 @@ PetState petState(const Model &model, std::uint32_t nowMs) noexcept
 {
     if (model.connection != Connection::Connected) return PetState::Sleep;
     if (model.faceDown) return PetState::Sleep;
-    if (model.transientUntilMs != 0 && nowMs < model.transientUntilMs)
+    /* Uptime milliseconds wrap after about 49.7 days; compare the signed
+       distance so a transient started before the wrap still expires. */
+    if (model.transientUntilMs != 0 &&
+        static_cast<std::int32_t>(model.transientUntilMs - nowMs) > 0)
         return model.transientState;
     if (model.promptActive || model.waitingSessions > 0) return PetState::Attention;
     if (model.runningSessions > 0) return PetState::Busy;

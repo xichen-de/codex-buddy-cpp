@@ -73,8 +73,10 @@ The touchscreen pages provide:
 
 Mic records from the Mac only while the button is held. To change modes, open
 **Menu → Switch Buddy**; the device restarts without erasing pairing data.
-Codex plays distinct cues when an Agent needs input, completes, or errors. Use
-**Menu → Sound** to mute or unmute all notification sounds.
+Codex plays distinct cues when an Agent needs input, completes, or errors. A
+needs-input notice closes by itself once you answer the Agent on the Mac;
+complete and error notices stay until tapped. Use **Menu → Sound** to mute or
+unmute all notification sounds.
 
 ### Codex troubleshooting
 
@@ -110,9 +112,9 @@ Claude mode includes:
   face-down screen sleep. Claude error cues require an error-bearing turn event.
 
 Place the device screen-up and flat once after startup to calibrate its
-orientation. Touch or a permission request wakes the display. Use **Info →
-Sound** to change the shared persisted mute setting, or **Info → Switch Buddy**
-to return to the startup selector.
+orientation. Touch, picking the device up, or a permission request wakes the
+display. Use **Info → Sound** to change the shared persisted mute setting, or
+**Info → Switch Buddy** to return to the startup selector.
 
 Pairing is stored on the device and normally survives restarts. Pair again if
 you forget the device on the computer, erase NVS, or change its BLE identity.
@@ -128,12 +130,13 @@ Claude mode uses an experimental developer API; see
 
 Normal operation uses Bluetooth and does not require a USB cable.
 
-After inactivity, both modes dim the backlight after 15 seconds and turn the
-LCD panel off after one minute while keeping Bluetooth connected. Touch wakes
+After inactivity, both modes dim the backlight to a low but readable level
+after 15 seconds and turn the LCD panel off after one minute while keeping Bluetooth connected. Touch wakes
 the display; the first touch from off is consumed to avoid activating a hidden
 control. Permission prompts, pairing passkeys, waiting Claude sessions, and
-Codex Agents requiring input immediately restore and hold normal brightness
-until the action is resolved.
+Codex Agents requiring input immediately restore normal brightness and hold it
+for up to one minute while the action is unresolved; the display then turns off
+as usual until the next touch.
 
 ## Development
 

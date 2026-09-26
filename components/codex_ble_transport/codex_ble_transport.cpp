@@ -230,7 +230,8 @@ esp_err_t sendJson(std::string_view json) noexcept
 {
     if (json.empty()) return ESP_ERR_INVALID_ARG;
     if (!connected()) return ESP_ERR_INVALID_STATE;
-    std::array<buddy::codex::Report, 8> reports{};
+    std::array<buddy::codex::Report, buddy::codex::MaxReportsPerMessage>
+        reports{};
     std::size_t report_count{};
     const buddy::codex::Result encoded = buddy::codex::encodeReports(
         json, reports, report_count);

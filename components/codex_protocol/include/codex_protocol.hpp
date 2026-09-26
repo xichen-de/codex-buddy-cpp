@@ -14,6 +14,12 @@ inline constexpr std::uint8_t ReportId = 6;
 inline constexpr std::size_t ReportBodySize = 63;
 inline constexpr std::size_t PayloadSize = 61;
 inline constexpr std::size_t RpcBufferSize = 4096;
+/* Longest device-to-host JSON message. The RPC response buffer and the BLE
+   transport's report array are both sized from this single limit. */
+inline constexpr std::size_t MaxMessageSize = 511;
+/* Reports needed for MaxMessageSize bytes plus the trailing newline. */
+inline constexpr std::size_t MaxReportsPerMessage =
+    (MaxMessageSize + 1 + PayloadSize - 1) / PayloadSize;
 
 enum class Key : std::uint8_t {
     Agent1,

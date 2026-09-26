@@ -137,7 +137,8 @@ Result encodeReports(std::string_view json, std::span<Report> reports,
 
 void Decoder::reset() noexcept
 {
-    json_.fill('\0');
+    /* json() is bounded by length_, so only the terminator needs clearing. */
+    json_[0] = '\0';
     length_ = 0;
     scanOffset_ = 0;
     depth_ = 0;

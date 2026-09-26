@@ -97,6 +97,14 @@ bool applyEvent(Model &model, const Event &event) noexcept
                 transitionOverlay != Overlay::None) {
                 model.notification = transitionOverlay;
                 model.notificationSlot = slot;
+            } else if (model.notification == Overlay::RequiresInput &&
+                       model.notificationSlot == slot &&
+                       current.status != SlotStatus::RequiresInput) {
+                /* The request was answered on the Mac, so the prompt to check
+                   it is stale. Complete and Error notices stay until tapped
+                   because they report an outcome the user may not have seen. */
+                model.notification = Overlay::None;
+                model.notificationSlot = NoSlot;
             }
             return true;
         },

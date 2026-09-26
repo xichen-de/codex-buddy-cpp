@@ -114,6 +114,10 @@ Example fixture for FAST press:
 The JSON is 53 bytes. Its single report begins `02 36`, contains those 53 UTF-8
 bytes followed by `0A`, and is zero-padded to 63 bytes.
 
+Outgoing messages are limited to 511 bytes of JSON (`MaxMessageSize`), which
+fits in nine reports with the newline. The RPC response buffer and the BLE
+transport are both sized from that one constant.
+
 The Codex Buddy decoder bounds accumulated JSON at 4096 bytes, validates report
 type and declared fragment length, accepts the optional leading Report ID, and
 resynchronizes when a new `{"method"...}` request replaces an incomplete one.

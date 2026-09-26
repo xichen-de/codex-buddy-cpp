@@ -62,14 +62,17 @@ static void rect(Canvas *canvas, int x, int y, int width, int height,
             canvas->pixels[row * Width + column] = color;
 }
 
-/* Rasterizes a filled circle into the canvas. */
+/* Rasterizes a filled circle as one clipped horizontal span per row. */
 static void circle(Canvas *canvas, int center_x, int center_y, int radius,
                    uint16_t color)
 {
-    for (int y = -radius; y <= radius; ++y)
-        for (int x = -radius; x <= radius; ++x)
-            if (x * x + y * y <= radius * radius)
-                rect(canvas, center_x + x, center_y + y, 1, 1, color);
+    int half = radius;
+    for (int y = 0; y <= radius; ++y) {
+        while (half * half + y * y > radius * radius) --half;
+        rect(canvas, center_x - half, center_y + y, 2 * half + 1, 1, color);
+        if (y != 0)
+            rect(canvas, center_x - half, center_y - y, 2 * half + 1, 1, color);
+    }
 }
 
 /* Rasterizes a one-pixel line using an integer error accumulator. */
@@ -160,7 +163,7 @@ static void centered(Canvas *canvas, const char *value, int center_x, int y,
          color);
 }
 
-/* Truncates text to a pixel width before drawing it into a bounded row. */
+/* Truncates text to a character count before drawing it into a bounded row. */
 static void clipped_text(Canvas *canvas, const char *source, int x, int y,
                          size_t characters, uint16_t color)
 {

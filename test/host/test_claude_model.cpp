@@ -1,4 +1,5 @@
 #include <cassert>
+#include <cstdint>
 #include <cstdio>
 #include <cstring>
 
@@ -24,6 +25,14 @@ int main(void)
     assert(!model.promptActive);
     assert(petState(model, 101) == PetState::Heart);
     assert(petState(model, 2000) == PetState::Busy);
+
+    /* Transients expire across the 32-bit uptime wrap. */
+    triggerDizzy(model, UINT32_MAX - 1000U);
+    assert(petState(model, UINT32_MAX - 999U) == PetState::Dizzy);
+    assert(petState(model, 500U) == PetState::Dizzy);
+    assert(petState(model, 1500U) == PetState::Busy);
+    triggerDizzy(model, 3'000'000'000U);
+    assert(petState(model, 100U) == PetState::Busy);
 
     for (size_t index = 0; index < ModelEntryCount; ++index)
         snprintf(model.entries[index].data(), model.entries[index].size(),

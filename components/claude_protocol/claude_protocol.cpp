@@ -238,7 +238,9 @@ bool commandResponse(std::string_view json, const Parser &parser, int command,
 
 void Decoder::reset() noexcept
 {
-    line_.fill('\0');
+    /* line() is bounded by length_, so clearing the whole 6 KiB buffer after
+       every message would be wasted work. */
+    line_[0] = '\0';
     length_ = 0;
     discarding_ = false;
 }

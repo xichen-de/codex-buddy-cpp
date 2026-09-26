@@ -379,7 +379,12 @@ void ClaudeRuntime::run() noexcept
                 case EventType::Passkey:
                     passkeyVisible_ = event.flag;
                     passkey_ = event.passkey;
-                    if (event.flag) wakeDisplay(uptimeMs());
+                    if (event.flag) {
+                        /* Hold full brightness while the code must be read. */
+                        const std::uint32_t passkeyMs = uptimeMs();
+                        displayPowerPolicy_.recordAttention(passkeyMs);
+                        wakeDisplay(passkeyMs);
+                    }
                     redraw = true;
                     break;
                 case EventType::Security:
@@ -409,13 +414,18 @@ void ClaudeRuntime::run() noexcept
                 redraw |= wasOff && desired != platform::DisplayPower::Off;
             }
         }
-        const std::uint32_t refreshPeriod = model_.page == claude::Page::Clock
-            ? ClockRefreshPeriodMs : PetAnimationPeriodMs;
-        if (displayPower_ == platform::DisplayPower::Normal &&
-            now - lastAnimationMs_ >= refreshPeriod) {
+        /* The owl animates only at normal brightness to save power, but the
+           clock stays readable while dimmed and must keep ticking. */
+        const bool clockPage = model_.page == claude::Page::Clock;
+        const bool refreshVisible = clockPage
+            ? displayPower_ != platform::DisplayPower::Off
+            : displayPower_ == platform::DisplayPower::Normal &&
+                  model_.page == claude::Page::Pet;
+        const std::uint32_t refreshPeriod =
+            clockPage ? ClockRefreshPeriodMs : PetAnimationPeriodMs;
+        if (refreshVisible && now - lastAnimationMs_ >= refreshPeriod) {
             lastAnimationMs_ = now;
-            redraw |= model_.page == claude::Page::Pet ||
-                      model_.page == claude::Page::Clock;
+            redraw = true;
         }
         if (redraw) render();
     }

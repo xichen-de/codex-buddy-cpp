@@ -52,7 +52,9 @@ struct BatteryStatus {
 /* Returns the shared 320 x 240 RGB565 framebuffer allocated in PSRAM. */
 [[nodiscard]] std::span<std::uint16_t> framebuffer() noexcept;
 
-/* Transfers the entire RGB565 framebuffer and waits until DMA is finished. */
+/* Transfers the entire RGB565 framebuffer and waits until DMA is finished.
+   The buffer is left in panel byte order, so callers must redraw every pixel
+   before presenting again. */
 [[nodiscard]] esp_err_t present() noexcept;
 
 /* Coordinates the LCD panel with normal, dimmed, and off backlight levels. */
