@@ -83,16 +83,18 @@ bool handleAction(Model &model, const Action &action, ActionPhase phase,
                        sendKey(transport, key, buddy::codex::KeyAction::Step);
             }
             const bool pressed = phase == ActionPhase::Press;
-            if (!sendKey(transport, key, pressed ? buddy::codex::KeyAction::Press
-                                                 : buddy::codex::KeyAction::Release))
-                return false;
-            if (key == buddy::codex::Key::Mic) {
-                if (pressed) (void)applyEvent(model, Event{MicPressed{}});
-                else if (phase == ActionPhase::Cancel)
-                    (void)applyEvent(model, Event{InputCancelled{}});
-                else (void)applyEvent(model, Event{MicReleased{}});
-            }
-            return true;
+            const bool sent = sendKey(
+                transport, key, pressed ? buddy::codex::KeyAction::Press
+                                        : buddy::codex::KeyAction::Release);
+            if (key != buddy::codex::Key::Mic) return sent;
+            if (pressed)
+                return sent && applyEvent(model, Event{MicPressed{}});
+            /* Always leave the local Listening state, even when the release
+               report is lost; otherwise its overlay would block all input. */
+            const bool changed = phase == ActionPhase::Cancel
+                ? applyEvent(model, Event{InputCancelled{}})
+                : applyEvent(model, Event{MicReleased{}});
+            return sent || changed;
         }
     }
     return false;

@@ -148,6 +148,11 @@ on physical hardware. They do not change the completed Codex v1 record above.
   Claude reconnects.
 - [x] Connection, attention, approval, denial, and completion sounds are clear,
   brief, and do not reset or stall BLE.
+
+The following unchecked items cover sound and display-power features added
+after the v1 pass. They are pending physical validation and are not part of
+the decision below.
+
 - [ ] Codex attention, completion, and error transitions each play one distinct
   cue without repeating on an unchanged status heartbeat.
 - [ ] A Claude turn event containing `is_error: true` plays the error cue once.
@@ -156,7 +161,15 @@ on physical hardware. They do not change the completed Codex v1 record above.
 - [ ] In both modes the screen dims after 15 seconds and turns off after one
   minute; one touch wakes it without activating the underlying control.
 - [ ] A Claude permission/passkey/waiting session and a Codex Agent requiring
-  input restore and hold normal brightness until the action is resolved.
+  input restore normal brightness and hold it for up to one minute.
+- [ ] While dimmed on the Clock page, the displayed time keeps advancing.
+- [ ] The dimmed backlight (DLDO1 2.4 V) is clearly darker than normal yet
+  still readable; record whether 2.3 V also stays readable on this unit.
+- [ ] A Codex needs-input notice closes by itself after the Agent is answered
+  on the Mac; complete and error notices remain until tapped.
+
+The remaining checks were completed in the v1 pass:
+
 - [x] Place the CoreS3 screen-up and flat once to establish orientation, then
   shake it firmly; the owl enters dizzy once without repeated false triggers.
 - [x] Leave the CoreS3 face-down for more than one second; the owl/display
@@ -183,8 +196,8 @@ on physical hardware. They do not change the completed Codex v1 record above.
 
 ### Claude validation decision
 
-**Decision: Claude Owl Buddy v1 hardware validation passed.** Every Claude
-check above was completed on the physical CoreS3, alongside a Codex regression
+**Decision: Claude Owl Buddy v1 hardware validation passed.** Every checked
+Claude item above was completed on the physical CoreS3, alongside a Codex regression
 pass to confirm dual-mode switching does not disturb the existing Codex bond.
 The tested host versions are recorded here, and the protocol notes retain the
 compatibility caveat for future Claude releases.

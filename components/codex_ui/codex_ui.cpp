@@ -58,14 +58,18 @@ static void fill_rect(Canvas *canvas, int x, int y, int width, int height,
             canvas->pixels[row * Width + column] = color;
 }
 
-/* Rasterizes a filled circle with clipping delegated to the rectangle helper. */
+/* Rasterizes a filled circle as one clipped horizontal span per row. */
 static void fill_circle(Canvas *canvas, int center_x, int center_y,
                         int radius, uint16_t color)
 {
-    for (int y = -radius; y <= radius; ++y)
-        for (int x = -radius; x <= radius; ++x)
-            if (x * x + y * y <= radius * radius)
-                fill_rect(canvas, center_x + x, center_y + y, 1, 1, color);
+    int half = radius;
+    for (int y = 0; y <= radius; ++y) {
+        while (half * half + y * y > radius * radius) --half;
+        fill_rect(canvas, center_x - half, center_y + y, 2 * half + 1, 1, color);
+        if (y != 0)
+            fill_rect(canvas, center_x - half, center_y - y, 2 * half + 1, 1,
+                      color);
+    }
 }
 
 /* Builds a filled rounded rectangle from rectangular bands and corner circles. */

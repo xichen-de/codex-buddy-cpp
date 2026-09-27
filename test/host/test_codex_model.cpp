@@ -106,6 +106,37 @@ static void test_transition_overlays_are_deduplicated(void)
     assert(overlay(model) == Overlay::Error);
 }
 
+static void test_requires_input_notice_clears_when_answered(void)
+{
+    Model model;
+    init(model);
+    Event event = connection_event(Connection::Connected);
+    assert(applyEvent(model, event));
+
+    event = status_event(2, SlotStatus::RequiresInput, 0xFFBF00);
+    assert(applyEvent(model, event));
+    assert(overlay(model) == Overlay::RequiresInput);
+
+    /* Another Agent changing state leaves the notice in place. */
+    event = status_event(3, SlotStatus::Thinking, 0x00BFFF);
+    assert(applyEvent(model, event));
+    assert(overlay(model) == Overlay::RequiresInput);
+    assert(overlaySlot(model) == 2);
+
+    /* Answering on the Mac returns the Agent to work and clears the notice. */
+    event = status_event(2, SlotStatus::Thinking, 0x00BFFF);
+    assert(applyEvent(model, event));
+    assert(overlay(model) == Overlay::None);
+    assert(overlaySlot(model) == NoSlot);
+
+    /* Complete and Error notices remain until dismissed. */
+    event = status_event(2, SlotStatus::Complete, 0x00FF00);
+    assert(applyEvent(model, event));
+    event = status_event(2, SlotStatus::Idle, 0xFFFFFF);
+    assert(applyEvent(model, event));
+    assert(overlay(model) == Overlay::Complete);
+}
+
 static void test_mic_overlay_and_cancellation(void)
 {
     Model model;
@@ -158,6 +189,7 @@ int main(void)
     test_selection_and_disconnect_reset();
     test_all_six_slots_are_selectable();
     test_transition_overlays_are_deduplicated();
+    test_requires_input_notice_clears_when_answered();
     test_mic_overlay_and_cancellation();
     test_buddy_menu_overrides_connection_overlay();
     puts("codex_model host tests passed");

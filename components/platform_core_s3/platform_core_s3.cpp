@@ -20,8 +20,16 @@
 namespace buddy::platform {
 
 static const char *TAG = "platform_core_s3";
-static constexpr int NormalBrightness = 15;
-static constexpr int DimmedBrightness = 2;
+/* The CoreS3 backlight is powered by AXP2101 DLDO1, so brightness is set by
+   its output voltage: register step n gives 0.5 V + n * 0.1 V. The BSP's
+   usable range is steps 20-28 (2.5-3.3 V); it calls anything lower "too dark",
+   which is what the dimmed idle state wants. Normal keeps the previous 2.6 V.
+   Dimmed was previously 2.5 V, only one step lower and hardly visible, so it
+   now uses 2.4 V. Step 18 (2.3 V) saves more if the screen stays readable on
+   a given unit; step 20 or above saves very little. */
+static constexpr std::uint8_t NormalBacklightStep = 21;
+static constexpr std::uint8_t DimmedBacklightStep = 19;
+static constexpr std::uint8_t MaximumBacklightStep = 28;
 static esp_lcd_panel_handle_t s_panel;
 static esp_lcd_panel_io_handle_t s_panel_io;
 static esp_lcd_touch_handle_t s_touch;
@@ -89,22 +97,21 @@ static esp_err_t add_power_devices() noexcept
     return i2c_master_bus_add_device(bus, &config, &s_io_expander);
 }
 
-static esp_err_t set_backlight(int brightness_percent) noexcept
+/* Sets DLDO1 to a voltage step, or disables the LDO entirely for step 0. */
+static esp_err_t set_backlight(std::uint8_t step) noexcept
 {
     if (s_pmu == nullptr) return ESP_ERR_INVALID_STATE;
-    if (brightness_percent <= 0) {
+    if (step == 0) {
         esp_err_t error = update_register(
             s_pmu, PmuLdoEnableRegister, PmuBacklightEnable, false);
         if (error != ESP_OK) return error;
         return write_register(s_pmu, PmuBacklightVoltageRegister, 0);
     }
-    if (brightness_percent > 100) brightness_percent = 100;
+    if (step > MaximumBacklightStep) step = MaximumBacklightStep;
     esp_err_t error = update_register(
         s_pmu, PmuLdoEnableRegister, PmuBacklightEnable, true);
     if (error != ESP_OK) return error;
-    const uint8_t voltage = static_cast<uint8_t>(
-        20 + 8 * brightness_percent / 100);
-    return write_register(s_pmu, PmuBacklightVoltageRegister, voltage);
+    return write_register(s_pmu, PmuBacklightVoltageRegister, step);
 }
 
 static esp_err_t set_speaker_hardware(bool enabled) noexcept
@@ -177,14 +184,13 @@ esp_err_t initialize() noexcept
              s_panel_io, &callbacks, nullptr)) != ESP_OK ||
         (error = bsp_display_brightness_init()) != ESP_OK ||
         (error = esp_lcd_panel_disp_on_off(s_panel, true)) != ESP_OK ||
-        (error = bsp_display_brightness_set(NormalBrightness)) != ESP_OK ||
         (error = bsp_touch_new(nullptr, &s_touch)) != ESP_OK) {
         ESP_LOGE(TAG, "Display/touch initialization failed: %s",
                  esp_err_to_name(error));
         return error;
     }
     if ((error = add_power_devices()) != ESP_OK ||
-        (error = set_backlight(NormalBrightness)) != ESP_OK) {
+        (error = set_backlight(NormalBacklightStep)) != ESP_OK) {
         ESP_LOGE(TAG, "CoreS3 power initialization failed: %s",
                  esp_err_to_name(error));
         return error;
@@ -201,7 +207,9 @@ std::span<std::uint16_t> framebuffer() noexcept
         : std::span<std::uint16_t>{s_framebuffer, PixelCount};
 }
 
-/* Byte-swaps RGB565 in place, submits LCD DMA, waits, then restores byte order. */
+/* Byte-swaps RGB565 in place, submits LCD DMA, and waits for completion. The
+   byte order is not restored: every renderer redraws the complete frame before
+   the next present(), so skipping a second 150 KB PSRAM pass is safe. */
 esp_err_t present() noexcept
 {
     if (s_panel == nullptr || s_framebuffer == nullptr || s_transfer_done == nullptr)
@@ -239,7 +247,7 @@ esp_err_t setDisplayPower(DisplayPower power) noexcept
         if (error == ESP_OK)
             error = set_backlight(
                 power == DisplayPower::Normal
-                    ? NormalBrightness : DimmedBrightness);
+                    ? NormalBacklightStep : DimmedBacklightStep);
     } else {
         error = set_backlight(0);
         if (error == ESP_OK) error = esp_lcd_panel_disp_on_off(s_panel, false);

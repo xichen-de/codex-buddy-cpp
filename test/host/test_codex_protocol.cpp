@@ -131,6 +131,23 @@ static void test_fragmentation_and_reassembly(void)
            buddy::codex::Result::NoSpace);
 }
 
+static void test_longest_message_fits_report_limit(void)
+{
+    /* One byte more than the reports can carry once the newline is added. */
+    std::array<char, buddy::codex::MaxReportsPerMessage *
+                         buddy::codex::PayloadSize> json{};
+    json.fill('x');
+    std::array<buddy::codex::Report, buddy::codex::MaxReportsPerMessage> reports{};
+    size_t report_count = 0;
+    assert(buddy::codex::encodeReports(
+               std::string_view{json.data(), buddy::codex::MaxMessageSize},
+               reports, report_count) == buddy::codex::Result::Ok);
+    assert(report_count <= reports.size());
+    assert(buddy::codex::encodeReports(
+               std::string_view{json.data(), json.size()}, reports,
+               report_count) == buddy::codex::Result::NoSpace);
+}
+
 static void test_decoder_validation_and_report_id(void)
 {
     const char request[] =
@@ -184,6 +201,7 @@ int main(void)
     test_key_encoding();
     test_direction_encoding();
     test_fragmentation_and_reassembly();
+    test_longest_message_fits_report_limit();
     test_decoder_validation_and_report_id();
     test_decoder_resynchronizes();
     puts("codex_protocol host tests passed");
